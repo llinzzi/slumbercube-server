@@ -6,3 +6,9 @@ data/
 *.bak.*
 .DS_Store
 /tmp/
+server.pid
+worker.pid
+# runtime data — regenerate on first run
+server.pid
+worker.pid
+config/device_readings.json

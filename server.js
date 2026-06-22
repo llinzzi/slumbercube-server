@@ -956,7 +956,14 @@ app.get('/temps', function(req, res) { res.render('temps'); });
 
 // List all known devices
 app.get('/api/devices/list', function(req, res) {
-  const devices = Array.from(new Set(_deviceReadings.map(r => r.device_id))).sort();
+  // Only devices that have a reading in the last 7 days, so the dropdown
+  // doesn't accumulate old/test entries forever.
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  const recent = new Set();
+  for (const r of _deviceReadings) {
+    if (new Date(r.ts).getTime() >= cutoff) recent.add(r.device_id);
+  }
+  const devices = [...recent].sort();
   res.json({ devices, count: devices.length });
 });
 
@@ -979,10 +986,16 @@ app.get('/api/readings', function(req, res) {
 app.post('/api/readings', express.json(), function(req, res) {
   const body = req.body || {};
   const items = Array.isArray(body.readings) ? body.readings : [body];
+  // Capture client IP the same way /log middleware does, so device
+  // identity is consistent across both pages.
+  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
   let inserted = 0;
   for (const it of items) {
-    if (!it.device_id) continue;
-    recordReading(it.device_id, it.temperature, it.humidity, it.source || 'device');
+    // device_id explicit in body wins; otherwise fall back to client IP.
+    // Strip IPv6-mapped prefix so ::ffff:192.168.8.80 → 192.168.8.80.
+    let id = it.device_id;
+    if (!id) id = String(clientIp).replace(/^::ffff:/, '');
+    recordReading(id, it.temperature, it.humidity, it.source || 'device');
     inserted++;
   }
   res.json({ ok: true, inserted, total: _deviceReadings.length });

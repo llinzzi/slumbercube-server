@@ -10,23 +10,59 @@
     :root {
       --bg: #0d0f14; --surface: #15181f; --surface2: #1c2029;
       --border: #2a2f3a; --text: #d4d8e0; --text-dim: #6b7280;
-      --accent: #22c55e;
+      --accent: #22c55e; --temp: #f97316; --hum: #38bdf8;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg); color: var(--text); padding: 20px; font-size: 13px;
     }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { max-width: 1100px; margin: 0 auto; }
     h1 { font-size: 20px; margin-bottom: 16px; color: var(--accent); }
+    h1 small { color: var(--text-dim); font-weight: 400; font-size: 12px; margin-left: 8px; }
+
+    .nav { margin-bottom: 16px; }
+    .nav a { color: var(--text-dim); text-decoration: none; font-size: 12px; margin-right: 14px; }
+    .nav a:hover { color: var(--accent); }
+
+    /* --- Device list (left) + chart (right) --- */
+    .layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+
+    .device-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px;
+      align-self: start; position: sticky; top: 16px;
+    }
+    .device-panel h3 { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-weight: 500; }
+    .device-list { display: flex; flex-direction: column; gap: 6px; }
+    .device-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer; transition: border-color 0.1s;
+    }
+    .device-item:hover { border-color: var(--text-dim); }
+    .device-item.active { border-color: var(--accent); background: var(--surface2); }
+    .device-item .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .device-item .name { font-family: monospace; font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .device-item .count { color: var(--text-dim); font-size: 10px; font-family: monospace; }
+    .device-panel .meta {
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--text-dim); line-height: 1.5;
+    }
+    .device-panel .meta strong { color: var(--text); font-weight: 500; }
+
+    /* --- Right panel: chart + table --- */
+    .right-panel { display: flex; flex-direction: column; gap: 16px; }
+
     .toolbar {
-      display: flex; gap: 8px; margin-bottom: 16px; align-items: center;
-      flex-wrap: wrap; background: var(--surface); padding: 10px 14px;
+      display: flex; gap: 8px; align-items: center;
+      background: var(--surface); padding: 10px 14px;
       border-radius: 8px; border: 1px solid var(--border);
+      flex-wrap: wrap;
     }
     .toolbar .group { display: flex; align-items: center; gap: 6px; }
     .toolbar label { font-size: 11px; color: var(--text-dim); }
-    .toolbar select, .toolbar input[type=number] {
+    .toolbar select {
       background: var(--bg); color: var(--text); border: 1px solid var(--border);
       border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: inherit;
     }
@@ -35,263 +71,390 @@
       border-radius: 4px; padding: 4px 12px; font-size: 11px; cursor: pointer;
     }
     .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
-    .toolbar button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
-    .stats {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
-      margin-bottom: 16px;
+
+    .tabs { display: flex; gap: 0; background: var(--surface); border-radius: 8px 8px 0 0;
+            border: 1px solid var(--border); border-bottom: none; padding: 0 12px; }
+    .tab {
+      padding: 10px 18px; font-size: 12px; cursor: pointer;
+      border-bottom: 2px solid transparent; color: var(--text-dim);
     }
-    .stat-card {
+    .tab.active { color: var(--temp); border-bottom-color: var(--temp); }
+    .tab[data-metric="humidity"].active { color: var(--hum); border-bottom-color: var(--hum); }
+
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 8px 8px; padding: 16px; height: 380px; position: relative;
+    }
+    .chart-card canvas { max-width: 100%; max-height: 100%; }
+
+    /* --- Stat strip (one row) --- */
+    .stat-strip { display: flex; gap: 10px; }
+    .stat {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+    }
+    .stat .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+    .stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; font-family: monospace; }
+    .stat .value .unit { font-size: 11px; color: var(--text-dim); margin-left: 2px; font-weight: 400; }
+
+    /* --- Detail table at bottom --- */
+    .table-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 12px 16px;
+      border-radius: 8px; padding: 14px;
     }
-    .stat-card .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
-    .stat-card .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
-    .stat-card .value .unit { font-size: 11px; color: var(--text-dim); margin-left: 2px; }
-    .chart-container {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 16px; height: 480px; position: relative;
+    .table-card h3 {
+      font-size: 12px; color: var(--text-dim); margin-bottom: 10px; font-weight: 500;
     }
-    .chart-container canvas { max-width: 100%; max-height: 100%; }
-    .legend {
-      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px;
-      background: var(--surface); padding: 12px 16px;
-      border-radius: 8px; border: 1px solid var(--border);
-    }
-    .legend-item {
-      display: flex; align-items: center; gap: 6px; font-size: 12px;
-    }
-    .legend-dot { width: 14px; height: 14px; border-radius: 50%; }
-    .legend-label { color: var(--text); }
-    .legend-value { color: var(--text-dim); font-family: monospace; font-size: 11px; }
-    .nav { margin-bottom: 16px; }
-    .nav a { color: var(--text-dim); text-decoration: none; font-size: 12px; }
-    .nav a:hover { color: var(--accent); }
-    .empty { text-align: center; padding: 60px; color: var(--text-dim); }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+    th { text-align: left; color: var(--text-dim); padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 500; }
+    td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    td.dot-cell { width: 14px; }
+    td.num { text-align: right; color: var(--text); }
+    td.time { color: var(--text-dim); }
+
+    .empty { text-align: center; padding: 40px; color: var(--text-dim); font-size: 12px; }
+    .help { font-size: 10px; color: var(--text-dim); margin-top: 4px; line-height: 1.5; }
   </style>
 </head>
 <body>
 <div class="container">
-  <div class="nav"><a href="/">← 电台首页</a></div>
-  <h1>🌡️ 温湿度图表</h1>
-
-  <div class="toolbar">
-    <div class="group">
-      <label>设备</label>
-      <select id="device-select"><option value="all">全部</option></select>
-    </div>
-    <div class="group">
-      <label>时间窗</label>
-      <select id="window-select">
-        <option value="1">过去 24 小时</option>
-        <option value="7" selected>过去 7 天</option>
-        <option value="30">过去 30 天</option>
-      </select>
-    </div>
-    <div class="group">
-      <label>显示</label>
-      <label style="display:flex;align-items:center;gap:4px;">
-        <input type="checkbox" id="show-temp" checked /> 🌡 温度
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;">
-        <input type="checkbox" id="show-humidity" checked /> 💧 湿度
-      </label>
-    </div>
-    <button id="refresh-btn">🔄 刷新</button>
-    <button id="test-btn" class="primary">+ 模拟数据</button>
-    <span style="flex:1;"></span>
-    <span id="count-display" style="font-size:11px;color:var(--text-dim);"></span>
+  <div class="nav">
+    <a href="/">← 电台首页</a>
+    <a href="/admin/dj">🎛 92DJ</a>
+    <a href="/library">📀 曲目库</a>
+    <a href="/log">📋 日志</a>
   </div>
+  <h1>🌡️ 温湿度图表 <small id="subtitle">按 IP 标识设备 · 跟 /log 一致</small></h1>
 
-  <div class="stats" id="stats-row"></div>
+  <div class="layout">
+    <!-- 左：设备面板（按 IP，跟 log 一致） -->
+    <div class="device-panel">
+      <h3>📡 设备（IP）</h3>
+      <div class="device-list" id="device-list">
+        <div class="empty" style="padding:20px;">加载中…</div>
+      </div>
+      <div class="meta">
+        设备 ID = 客户端 IP（去掉 <strong>::ffff:</strong> 前缀）。<br>
+        与 <a href="/log" style="color:var(--accent)">/log</a> 页一致。<br>
+        仅显示最近 <strong>7 天</strong> 上传过数据的设备。
+      </div>
+    </div>
 
-  <div class="chart-container">
-    <canvas id="chart"></canvas>
+    <!-- 右：图 + 表 -->
+    <div class="right-panel">
+      <div class="toolbar">
+        <div class="group">
+          <label>时间窗</label>
+          <select id="window-select">
+            <option value="1">过去 1 小时</option>
+            <option value="24" selected>过去 24 小时</option>
+            <option value="168">过去 7 天</option>
+            <option value="720">过去 30 天</option>
+          </select>
+        </div>
+        <div class="group">
+          <label>采样</label>
+          <select id="bucket-select">
+            <option value="0">原始</option>
+            <option value="60" selected>1 分钟聚合</option>
+            <option value="300">5 分钟聚合</option>
+            <option value="3600">1 小时聚合</option>
+          </select>
+        </div>
+        <button id="refresh-btn">🔄 刷新</button>
+        <button id="test-btn">+ 模拟数据</button>
+        <span style="flex:1;"></span>
+        <span id="count-display" style="font-size:11px;color:var(--text-dim);"></span>
+      </div>
+
+      <div>
+        <div class="tabs">
+          <div class="tab active" data-metric="temperature">🌡 温度 (°C)</div>
+          <div class="tab" data-metric="humidity">💧 湿度 (%)</div>
+        </div>
+        <div class="chart-card"><canvas id="chart"></canvas></div>
+      </div>
+
+      <div class="stat-strip" id="stat-strip"></div>
+
+      <div class="table-card">
+        <h3>📊 当前选中设备最近读数（最多 30 条）</h3>
+        <table id="detail-table">
+          <thead>
+            <tr><th class="dot-cell"></th><th>时间</th><th class="num">温度 (°C)</th><th class="num">湿度 (%)</th><th>来源</th></tr>
+          </thead>
+          <tbody id="detail-body">
+            <tr><td colspan="5" class="empty">选一个设备查看</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="help">
+        设备上传：<code style="color:var(--accent);">POST /api/readings {temperature, humidity}</code>（不指定 device_id，自动用客户端 IP）
+        · 每设备最多保留 <strong>1440</strong> 条读数 · 颜色固定按 IP 字典序分配
+      </div>
+    </div>
   </div>
-
-  <div class="legend" id="legend"></div>
 </div>
 
 <script>
-// Stable color palette (12 distinct colors, one per device)
 const COLORS = [
   '#22c55e', '#3b82f6', '#f59e0b', '#ef4444',
   '#a855f7', '#ec4899', '#14b8a6', '#f97316',
   '#06b6d4', '#84cc16', '#eab308', '#d946ef',
 ];
 
-let chart = null;
-let allDevices = [];
-let allReadings = [];
+let state = {
+  devices: [],     // [{id, color, count}]
+  byDevice: {},    // device_id → [{ts, temperature, humidity, source}]
+  selected: 'all', // 'all' | device_id
+  metric: 'temperature',
+  windowHours: 24,
+  bucketSec: 60,
+};
 
 const $ = id => document.getElementById(id);
 
-async function loadDevices() {
-  try {
-    const r = await fetch('/api/devices/list');
-    const d = await r.json();
-    allDevices = d.devices || [];
-    const sel = $('device-select');
-    sel.innerHTML = '<option value="all">全部 (' + allDevices.length + ')</option>';
-    allDevices.forEach((dev, i) => {
-      const opt = document.createElement('option');
-      opt.value = dev; opt.textContent = dev;
-      sel.appendChild(opt);
+// Format timestamp compactly for tables
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Bucket aggregation: average readings in N-second windows per device
+function bucketize(readings, bucketSec) {
+  if (bucketSec <= 0) return readings;
+  const buckets = new Map(); // key: `${dev}|${bucketStart}` → {sum, count, dev, ts}
+  for (const r of readings) {
+    const t = new Date(r.ts).getTime();
+    const bucketStart = Math.floor(t / (bucketSec * 1000)) * (bucketSec * 1000);
+    const key = `${r.device_id}|${bucketStart}`;
+    const cur = buckets.get(key) || { device_id: r.device_id, ts: new Date(bucketStart).toISOString(),
+                                       t_sum: 0, t_count: 0, h_sum: 0, h_count: 0 };
+    if (r.temperature != null) { cur.t_sum += r.temperature; cur.t_count += 1; }
+    if (r.humidity != null) { cur.h_sum += r.humidity; cur.h_count += 1; }
+    buckets.set(key, cur);
+  }
+  const out = [];
+  for (const v of buckets.values()) {
+    out.push({
+      device_id: v.device_id,
+      ts: v.ts,
+      temperature: v.t_count ? v.t_sum / v.t_count : null,
+      humidity: v.h_count ? v.h_sum / v.h_count : null,
+      source: 'bucket',
     });
-  } catch (e) { console.error(e); }
+  }
+  out.sort((a, b) => a.ts.localeCompare(b.ts));
+  return out;
+}
+
+async function loadDevices() {
+  const r = await fetch('/api/devices/list');
+  const d = await r.json();
+  state.devices = d.devices.map((id, i) => ({ id, color: COLORS[i % COLORS.length], count: 0 }));
+  renderDevicePanel();
 }
 
 async function loadReadings() {
-  const days = $('window-select').value;
-  const device = $('device-select').value;
-  let url = '/api/readings?days=' + days;
-  if (device !== 'all') url += '&device=' + encodeURIComponent(device);
-  try {
-    const r = await fetch(url);
-    const d = await r.json();
-    allReadings = d.byDevice || {};
-    $('count-display').textContent = d.count + ' 条记录';
-    renderChart();
-    renderLegend();
-    renderStats();
-  } catch (e) { console.error(e); }
+  const hours = state.windowHours;
+  const url = '/api/readings?days=' + Math.max(1, Math.ceil(hours / 24));
+  const r = await fetch(url);
+  const d = await r.json();
+  // Filter to window
+  const cutoff = Date.now() - hours * 3600 * 1000;
+  const filtered = {};
+  for (const [dev, list] of Object.entries(d.byDevice)) {
+    const inWin = list.filter(x => new Date(x.ts).getTime() >= cutoff);
+    if (inWin.length) filtered[dev] = inWin;
+  }
+  state.byDevice = filtered;
+  // Update counts in device panel
+  for (const dv of state.devices) dv.count = (filtered[dv.id] || []).length;
+  renderDevicePanel();
+  renderChart();
+  renderStatStrip();
+  renderDetailTable();
+  const total = Object.values(filtered).reduce((s, l) => s + l.length, 0);
+  $('count-display').textContent = total + ' 条 / ' + Object.keys(filtered).length + ' 设备';
+}
+
+function renderDevicePanel() {
+  const el = $('device-list');
+  if (!state.devices.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px;">7 天内无数据<br><small>点 "+模拟数据" 试试</small></div>';
+    return;
+  }
+  let html = '<div class="device-item ' + (state.selected === 'all' ? 'active' : '') + '" data-id="all">'
+    + '<div class="dot" style="background:linear-gradient(135deg,#3b82f6,#22c55e,#f59e0b)"></div>'
+    + '<span class="name">全部设备</span>'
+    + '<span class="count">' + state.devices.length + '</span></div>';
+  for (const dv of state.devices) {
+    html += '<div class="device-item ' + (state.selected === dv.id ? 'active' : '') + '" data-id="' + escapeHtml(dv.id) + '">'
+      + '<div class="dot" style="background:' + dv.color + '"></div>'
+      + '<span class="name" title="' + escapeHtml(dv.id) + '">' + escapeHtml(dv.id) + '</span>'
+      + '<span class="count">' + dv.count + '</span></div>';
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('.device-item').forEach(item => {
+    item.addEventListener('click', () => {
+      state.selected = item.dataset.id;
+      renderDevicePanel();
+      renderChart();
+      renderStatStrip();
+      renderDetailTable();
+    });
+  });
+}
+
+function getVisibleDevices() {
+  if (state.selected === 'all') return state.devices;
+  return state.devices.filter(d => d.id === state.selected);
 }
 
 function renderChart() {
-  const showTemp = $('show-temp').checked;
-  const showHumidity = $('show-humidity').checked;
   const datasets = [];
-  const devices = Object.keys(allReadings).sort();
-  devices.forEach((dev, i) => {
-    const color = COLORS[i % COLORS.length];
-    const arr = allReadings[dev];
-    if (showTemp) {
-      datasets.push({
-        label: dev + ' · 温度',
-        data: arr.filter(r => r.temperature != null).map(r => ({ x: r.ts, y: r.temperature })),
-        borderColor: color, backgroundColor: color + '20',
-        yAxisID: 'y', tension: 0.3, borderWidth: 2, pointRadius: 2,
-      });
-    }
-    if (showHumidity) {
-      datasets.push({
-        label: dev + ' · 湿度',
-        data: arr.filter(r => r.humidity != null).map(r => ({ x: r.ts, y: r.humidity })),
-        borderColor: color, backgroundColor: color + '20',
-        yAxisID: 'y1', tension: 0.3, borderWidth: 2, borderDash: [4, 4], pointRadius: 2,
-      });
-    }
-  });
-
-  if (chart) chart.destroy();
+  for (const dv of getVisibleDevices()) {
+    const raw = state.byDevice[dv.id] || [];
+    if (!raw.length) continue;
+    const data = bucketize(raw, state.bucketSec);
+    const points = data
+      .filter(r => state.metric === 'temperature' ? r.temperature != null : r.humidity != null)
+      .map(r => ({ x: r.ts, y: state.metric === 'temperature' ? r.temperature : r.humidity }));
+    if (!points.length) continue;
+    datasets.push({
+      label: dv.id,
+      data: points,
+      borderColor: dv.color,
+      backgroundColor: dv.color + '20',
+      tension: 0.25,
+      borderWidth: 2,
+      pointRadius: state.selected === 'all' ? 2 : 3,
+      pointHoverRadius: 5,
+    });
+  }
+  if (window._chart) window._chart.destroy();
   const ctx = $('chart').getContext('2d');
-  chart = new Chart(ctx, {
+  const isTemp = state.metric === 'temperature';
+  window._chart = new Chart(ctx, {
     type: 'line',
     data: { datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: { display: state.selected === 'all', position: 'top', align: 'end',
+                  labels: { color: '#d4d8e0', font: { size: 11 }, boxWidth: 12 } },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
-              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1)
-                + (ctx.dataset.yAxisID === 'y' ? '°C' : '%');
-            },
+            label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + (isTemp ? ' °C' : ' %'),
+            title: items => fmtTime(items[0].parsed.x),
           },
         },
       },
       scales: {
         x: {
           type: 'time',
-          time: { tooltipFormat: 'MM-dd HH:mm', displayFormats: { hour: 'MM-dd HH:mm', day: 'MM-dd' } },
+          time: { tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+                  displayFormats: { minute: 'HH:mm', hour: 'MM-dd HH:mm', day: 'MM-dd' } },
           ticks: { color: '#6b7280' },
           grid: { color: '#2a2f3a' },
         },
         y: {
           position: 'left',
-          title: { display: true, text: '°C 温度', color: '#22c55e' },
-          ticks: { color: '#22c55e' },
+          title: { display: true, text: isTemp ? '°C 温度' : '% 湿度',
+                   color: isTemp ? '#f97316' : '#38bdf8' },
+          ticks: { color: isTemp ? '#f97316' : '#38bdf8' },
           grid: { color: '#2a2f3a' },
-        },
-        y1: {
-          position: 'right',
-          title: { display: true, text: '% 湿度', color: '#60a5fa' },
-          ticks: { color: '#60a5fa' },
-          grid: { display: false },
         },
       },
     },
   });
 }
 
-function renderLegend() {
-  const devices = Object.keys(allReadings).sort();
-  const html = devices.map((dev, i) => {
-    const color = COLORS[i % COLORS.length];
-    const arr = allReadings[dev];
-    const temps = arr.map(r => r.temperature).filter(v => v != null);
-    const hums = arr.map(r => r.humidity).filter(v => v != null);
-    const tempAvg = temps.length ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '--';
-    const humAvg = hums.length ? (hums.reduce((a, b) => a + b, 0) / hums.length).toFixed(1) : '--';
-    return '<div class="legend-item">'
-      + '<div class="legend-dot" style="background:' + color + '"></div>'
-      + '<span class="legend-label">' + dev + '</span>'
-      + '<span class="legend-value">' + tempAvg + '°C · ' + humAvg + '% · ' + arr.length + '条</span>'
-      + '</div>';
-  }).join('');
-  $('legend').innerHTML = html || '<div class="legend-item"><span class="legend-value">暂无数据，点 "+模拟数据" 创建测试数据</span></div>';
+function renderStatStrip() {
+  const all = [];
+  for (const dv of getVisibleDevices()) {
+    for (const r of (state.byDevice[dv.id] || [])) all.push(r);
+  }
+  const v = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '--';
+  const mx = arr => arr.length ? Math.max(...arr).toFixed(1) : '--';
+  const mn = arr => arr.length ? Math.min(...arr).toFixed(1) : '--';
+  const temps = all.map(r => r.temperature).filter(x => x != null);
+  const hums = all.map(r => r.humidity).filter(x => x != null);
+  const isTemp = state.metric === 'temperature';
+  const stat = isTemp
+    ? [['平均', v(temps)], ['最高', mx(temps)], ['最低', mn(temps)], ['读数', all.length]]
+    : [['平均', v(hums)], ['最高', mx(hums)], ['最低', mn(hums)], ['读数', all.length]];
+  const unit = isTemp ? '°C' : '%';
+  $('stat-strip').innerHTML = stat.map(([l, val]) =>
+    '<div class="stat"><div class="label">' + l + '</div><div class="value">'
+    + val + (typeof val === 'string' && val !== '--' ? '<span class="unit">' + unit + '</span>' : '')
+    + '</div></div>'
+  ).join('');
 }
 
-function renderStats() {
-  const devices = Object.keys(allReadings);
-  let allTemps = [], allHums = [];
-  devices.forEach(d => {
-    allReadings[d].forEach(r => {
-      if (r.temperature != null) allTemps.push(r.temperature);
-      if (r.humidity != null) allHums.push(r.humidity);
-    });
-  });
-  const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '--';
-  const max = arr => arr.length ? Math.max(...arr).toFixed(1) : '--';
-  const min = arr => arr.length ? Math.min(...arr).toFixed(1) : '--';
-
-  $('stats-row').innerHTML =
-    '<div class="stat-card"><div class="label">平均温度</div><div class="value">' + avg(allTemps) + '<span class="unit">°C</span></div></div>'
-    + '<div class="stat-card"><div class="label">最高/最低</div><div class="value">' + max(allTemps) + ' / ' + min(allTemps) + '<span class="unit">°C</span></div></div>'
-    + '<div class="stat-card"><div class="label">平均湿度</div><div class="value">' + avg(allHums) + '<span class="unit">%</span></div></div>'
-    + '<div class="stat-card"><div class="label">设备数</div><div class="value">' + devices.length + '</div></div>';
+function renderDetailTable() {
+  const tbody = $('detail-body');
+  if (state.selected === 'all') {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">选左侧具体设备查看</td></tr>';
+    return;
+  }
+  const list = (state.byDevice[state.selected] || []).slice().reverse().slice(0, 30);
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">该设备无数据</td></tr>';
+    return;
+  }
+  const dv = state.devices.find(d => d.id === state.selected);
+  const color = dv ? dv.color : '#888';
+  tbody.innerHTML = list.map(r =>
+    '<tr><td class="dot-cell"><div class="device-item" style="padding:0;width:10px;height:10px;border:none;background:' + color + ';border-radius:50%"></div></td>'
+    + '<td class="time">' + fmtTime(r.ts) + '</td>'
+    + '<td class="num">' + (r.temperature != null ? r.temperature.toFixed(1) : '--') + '</td>'
+    + '<td class="num">' + (r.humidity != null ? r.humidity.toFixed(1) : '--') + '</td>'
+    + '<td>' + escapeHtml(r.source || 'device') + '</td></tr>'
+  ).join('');
 }
 
 async function injectTestData() {
-  // Generate 24h of synthetic data for 3 test devices, every 30 min
+  // Simulate two ESP32 sensors on the LAN. We can't spoof the socket
+  // source IP, but we can hit POST with explicit device_id that the
+  // server will use directly (device_id explicit wins over client IP).
   const now = Date.now();
-  const devices = ['esp32-192', 'esp32-rack', 'desk-sensor'];
+  const testDevs = ['192.168.8.80', '192.168.8.81'];
   const readings = [];
-  for (const dev of devices) {
-    const base = dev === 'esp32-192' ? 24 : (dev === 'esp32-rack' ? 22 : 26);
+  for (const dev of testDevs) {
+    const base = dev === '192.168.8.80' ? 24 : 22;
     for (let h = 24; h >= 0; h--) {
       const ts = new Date(now - h * 3600 * 1000).toISOString();
       const temp = base + Math.sin((24 - h) / 24 * Math.PI * 2) * 4 + (Math.random() - 0.5);
       const hum = 60 + Math.cos((24 - h) / 24 * Math.PI * 2) * 15 + (Math.random() - 0.5) * 5;
-      readings.push({ device_id: dev, ts, temperature: +temp.toFixed(1), humidity: +hum.toFixed(1), source: 'device' });
+      readings.push({ device_id: dev, ts, temperature: +temp.toFixed(1), humidity: +hum.toFixed(1), source: 'sim' });
     }
   }
-  await fetch('/api/readings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ readings }),
-  });
+  await fetch('/api/readings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ readings }) });
   await loadDevices();
   await loadReadings();
 }
 
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
 $('refresh-btn').addEventListener('click', loadReadings);
 $('test-btn').addEventListener('click', injectTestData);
-$('device-select').addEventListener('change', loadReadings);
-$('window-select').addEventListener('change', loadReadings);
-$('show-temp').addEventListener('change', renderChart);
-$('show-humidity').addEventListener('change', renderChart);
+$('window-select').addEventListener('change', e => { state.windowHours = +e.target.value; loadReadings(); });
+$('bucket-select').addEventListener('change', e => { state.bucketSec = +e.target.value; renderChart(); renderStatStrip(); });
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  state.metric = t.dataset.metric;
+  renderChart(); renderStatStrip();
+}));
+
+// Auto refresh every 30s
+setInterval(loadReadings, 30000);
 
 (async () => { await loadDevices(); await loadReadings(); })();
 </script>
