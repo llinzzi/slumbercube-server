@@ -25,7 +25,7 @@
         "早间音乐",
         "Morning"
       ],
-      "volume": 4
+      "volume": 5
     },
     "night": {
       "label": "夜深了",
@@ -78,14 +78,9 @@
     "evening": {
       "label": "夜深了",
       "keywords": [
-        "晚安歌曲",
-        "助眠音乐",
-        "深度睡眠",
-        "睡眠音乐",
-        "放松",
-        "Sleep"
+        "晚安歌单"
       ],
-      "volume": 4
+      "volume": 5
     }
   }
 }

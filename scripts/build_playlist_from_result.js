@@ -69,6 +69,9 @@ const LAME_BIN = detectLameBin();
 const LAME_LIB_DIR = path.join(PROJECT_ROOT, 'node_modules', 'node-lame', 'vendor', 'lame', 'linux-x64', 'lib');
 const MONO2STEREO_PATH = path.join(PROJECT_ROOT, 'scripts', 'mono2stereo.js');
 const TTS_VOICE = 'Chinese (Mandarin)_Male_Announcer';
+// Boost TTS intro audio so it's not drowned out by the song. Applied during
+// the lame re-encode step via --scale. 1.0 = unchanged, 1.20 = +20% (default).
+const TTS_GAIN = 1.20;
 
 // ----------------------------------------------------------------
 // Intro-prompt config — editable from the admin UI. Persisted to
@@ -635,7 +638,7 @@ async function transcodeToStereo(srcPath, dstPath) {
     });
     await execAsync(`${LAME_BIN} --decode ${JSON.stringify(srcPath)} ${JSON.stringify(tmpWav)}`, { env, timeout: 30000 });
     await execAsync(`node ${JSON.stringify(MONO2STEREO_PATH)} ${JSON.stringify(tmpWav)} ${JSON.stringify(tmpStereo)}`, { timeout: 15000 });
-    await execAsync(`${LAME_BIN} -b 128 -m s --resample 44.1 ${JSON.stringify(tmpStereo)} ${JSON.stringify(dstPath)}`, { env, timeout: 30000 });
+    await execAsync(`${LAME_BIN} -b 128 -m s --resample 44.1 --scale ${TTS_GAIN} ${JSON.stringify(tmpStereo)} ${JSON.stringify(dstPath)}`, { env, timeout: 30000 });
     return fs.existsSync(dstPath) && fs.statSync(dstPath).size > 1000;
   } catch (e) {
     log('  transcode failed:', e.message.slice(0, 200));

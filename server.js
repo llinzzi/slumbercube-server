@@ -253,6 +253,10 @@ async function generateIntro(songName, weatherData) {
     text = `接下来请欣赏《${songName}》`;
   }
 
+
+// TTS intro gain — applies during lame re-encode step (after mono2stereo).
+// 1.0 = unchanged, 1.20 = +20% (default). Tune if TTS is too soft relative to song.
+const TTS_GAIN = 1.20;
   // 2) TTS + transcode
   return await synthesizeIntro(text, songName);
 }
@@ -284,7 +288,7 @@ function synthesizeIntro(text, songName = '未知') {
         const env = Object.assign({}, process.env, { LD_LIBRARY_PATH: libDir + ':' + (process.env.LD_LIBRARY_PATH || '') });
         const monoScript = path.join(__dirname, 'scripts', 'mono2stereo.js');
         await execAsync(`node "${monoScript}" "${rawWav}" "${stereoWav}"`, 10000);
-        await execAsyncEnv(`"${lameBin}" --quiet --resample 44.1 -m s "${stereoWav}" "${outMp3}"`, env, 15000);
+        await execAsyncEnv(`"${lameBin}" --quiet --resample 44.1 -m s --scale ${TTS_GAIN} "${stereoWav}" "${outMp3}"`, env, 15000);
       } else {
         // No lame — use raw WAV
         fs.renameSync(rawWav, outMp3);

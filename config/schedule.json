@@ -8,7 +8,7 @@
       "batch": "evening",
       "scene": "night",
       "enabled": true,
-      "volume": 4
+      "volume": 5
     },
     {
       "id": "morning",
