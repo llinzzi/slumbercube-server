@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>温湿度图表 · 192电台</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f14; --surface: #15181f; --surface2: #1c2029;
+      --border: #2a2f3a; --text: #d4d8e0; --text-dim: #6b7280;
+      --accent: #22c55e;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); padding: 20px; font-size: 13px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 20px; margin-bottom: 16px; color: var(--accent); }
+    .toolbar {
+      display: flex; gap: 8px; margin-bottom: 16px; align-items: center;
+      flex-wrap: wrap; background: var(--surface); padding: 10px 14px;
+      border-radius: 8px; border: 1px solid var(--border);
+    }
+    .toolbar .group { display: flex; align-items: center; gap: 6px; }
+    .toolbar label { font-size: 11px; color: var(--text-dim); }
+    .toolbar select, .toolbar input[type=number] {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: inherit;
+    }
+    .toolbar button {
+      background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 12px; font-size: 11px; cursor: pointer;
+    }
+    .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+    .toolbar button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px;
+    }
+    .stat-card .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+    .stat-card .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+    .stat-card .value .unit { font-size: 11px; color: var(--text-dim); margin-left: 2px; }
+    .chart-container {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; height: 480px; position: relative;
+    }
+    .chart-container canvas { max-width: 100%; max-height: 100%; }
+    .legend {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px;
+      background: var(--surface); padding: 12px 16px;
+      border-radius: 8px; border: 1px solid var(--border);
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
+    }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; }
+    .legend-label { color: var(--text); }
+    .legend-value { color: var(--text-dim); font-family: monospace; font-size: 11px; }
+    .nav { margin-bottom: 16px; }
+    .nav a { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+    .nav a:hover { color: var(--accent); }
+    .empty { text-align: center; padding: 60px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="nav"><a href="/">← 电台首页</a></div>
+  <h1>🌡️ 温湿度图表</h1>
+
+  <div class="toolbar">
+    <div class="group">
+      <label>设备</label>
+      <select id="device-select"><option value="all">全部</option></select>
+    </div>
+    <div class="group">
+      <label>时间窗</label>
+      <select id="window-select">
+        <option value="1">过去 24 小时</option>
+        <option value="7" selected>过去 7 天</option>
+        <option value="30">过去 30 天</option>
+      </select>
+    </div>
+    <div class="group">
+      <label>显示</label>
+      <label style="display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="show-temp" checked /> 🌡 温度
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="show-humidity" checked /> 💧 湿度
+      </label>
+    </div>
+    <button id="refresh-btn">🔄 刷新</button>
+    <button id="test-btn" class="primary">+ 模拟数据</button>
+    <span style="flex:1;"></span>
+    <span id="count-display" style="font-size:11px;color:var(--text-dim);"></span>
+  </div>
+
+  <div class="stats" id="stats-row"></div>
+
+  <div class="chart-container">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="legend" id="legend"></div>
+</div>
+
+<script>
+// Stable color palette (12 distinct colors, one per device)
+const COLORS = [
+  '#22c55e', '#3b82f6', '#f59e0b', '#ef4444',
+  '#a855f7', '#ec4899', '#14b8a6', '#f97316',
+  '#06b6d4', '#84cc16', '#eab308', '#d946ef',
+];
+
+let chart = null;
+let allDevices = [];
+let allReadings = [];
+
+const $ = id => document.getElementById(id);
+
+async function loadDevices() {
+  try {
+    const r = await fetch('/api/devices/list');
+    const d = await r.json();
+    allDevices = d.devices || [];
+    const sel = $('device-select');
+    sel.innerHTML = '<option value="all">全部 (' + allDevices.length + ')</option>';
+    allDevices.forEach((dev, i) => {
+      const opt = document.createElement('option');
+      opt.value = dev; opt.textContent = dev;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+
+async function loadReadings() {
+  const days = $('window-select').value;
+  const device = $('device-select').value;
+  let url = '/api/readings?days=' + days;
+  if (device !== 'all') url += '&device=' + encodeURIComponent(device);
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    allReadings = d.byDevice || {};
+    $('count-display').textContent = d.count + ' 条记录';
+    renderChart();
+    renderLegend();
+    renderStats();
+  } catch (e) { console.error(e); }
+}
+
+function renderChart() {
+  const showTemp = $('show-temp').checked;
+  const showHumidity = $('show-humidity').checked;
+  const datasets = [];
+  const devices = Object.keys(allReadings).sort();
+  devices.forEach((dev, i) => {
+    const color = COLORS[i % COLORS.length];
+    const arr = allReadings[dev];
+    if (showTemp) {
+      datasets.push({
+        label: dev + ' · 温度',
+        data: arr.filter(r => r.temperature != null).map(r => ({ x: r.ts, y: r.temperature })),
+        borderColor: color, backgroundColor: color + '20',
+        yAxisID: 'y', tension: 0.3, borderWidth: 2, pointRadius: 2,
+      });
+    }
+    if (showHumidity) {
+      datasets.push({
+        label: dev + ' · 湿度',
+        data: arr.filter(r => r.humidity != null).map(r => ({ x: r.ts, y: r.humidity })),
+        borderColor: color, backgroundColor: color + '20',
+        yAxisID: 'y1', tension: 0.3, borderWidth: 2, borderDash: [4, 4], pointRadius: 2,
+      });
+    }
+  });
+
+  if (chart) chart.destroy();
+  const ctx = $('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1)
+                + (ctx.dataset.yAxisID === 'y' ? '°C' : '%');
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { tooltipFormat: 'MM-dd HH:mm', displayFormats: { hour: 'MM-dd HH:mm', day: 'MM-dd' } },
+          ticks: { color: '#6b7280' },
+          grid: { color: '#2a2f3a' },
+        },
+        y: {
+          position: 'left',
+          title: { display: true, text: '°C 温度', color: '#22c55e' },
+          ticks: { color: '#22c55e' },
+          grid: { color: '#2a2f3a' },
+        },
+        y1: {
+          position: 'right',
+          title: { display: true, text: '% 湿度', color: '#60a5fa' },
+          ticks: { color: '#60a5fa' },
+          grid: { display: false },
+        },
+      },
+    },
+  });
+}
+
+function renderLegend() {
+  const devices = Object.keys(allReadings).sort();
+  const html = devices.map((dev, i) => {
+    const color = COLORS[i % COLORS.length];
+    const arr = allReadings[dev];
+    const temps = arr.map(r => r.temperature).filter(v => v != null);
+    const hums = arr.map(r => r.humidity).filter(v => v != null);
+    const tempAvg = temps.length ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '--';
+    const humAvg = hums.length ? (hums.reduce((a, b) => a + b, 0) / hums.length).toFixed(1) : '--';
+    return '<div class="legend-item">'
+      + '<div class="legend-dot" style="background:' + color + '"></div>'
+      + '<span class="legend-label">' + dev + '</span>'
+      + '<span class="legend-value">' + tempAvg + '°C · ' + humAvg + '% · ' + arr.length + '条</span>'
+      + '</div>';
+  }).join('');
+  $('legend').innerHTML = html || '<div class="legend-item"><span class="legend-value">暂无数据，点 "+模拟数据" 创建测试数据</span></div>';
+}
+
+function renderStats() {
+  const devices = Object.keys(allReadings);
+  let allTemps = [], allHums = [];
+  devices.forEach(d => {
+    allReadings[d].forEach(r => {
+      if (r.temperature != null) allTemps.push(r.temperature);
+      if (r.humidity != null) allHums.push(r.humidity);
+    });
+  });
+  const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '--';
+  const max = arr => arr.length ? Math.max(...arr).toFixed(1) : '--';
+  const min = arr => arr.length ? Math.min(...arr).toFixed(1) : '--';
+
+  $('stats-row').innerHTML =
+    '<div class="stat-card"><div class="label">平均温度</div><div class="value">' + avg(allTemps) + '<span class="unit">°C</span></div></div>'
+    + '<div class="stat-card"><div class="label">最高/最低</div><div class="value">' + max(allTemps) + ' / ' + min(allTemps) + '<span class="unit">°C</span></div></div>'
+    + '<div class="stat-card"><div class="label">平均湿度</div><div class="value">' + avg(allHums) + '<span class="unit">%</span></div></div>'
+    + '<div class="stat-card"><div class="label">设备数</div><div class="value">' + devices.length + '</div></div>';
+}
+
+async function injectTestData() {
+  // Generate 24h of synthetic data for 3 test devices, every 30 min
+  const now = Date.now();
+  const devices = ['esp32-192', 'esp32-rack', 'desk-sensor'];
+  const readings = [];
+  for (const dev of devices) {
+    const base = dev === 'esp32-192' ? 24 : (dev === 'esp32-rack' ? 22 : 26);
+    for (let h = 24; h >= 0; h--) {
+      const ts = new Date(now - h * 3600 * 1000).toISOString();
+      const temp = base + Math.sin((24 - h) / 24 * Math.PI * 2) * 4 + (Math.random() - 0.5);
+      const hum = 60 + Math.cos((24 - h) / 24 * Math.PI * 2) * 15 + (Math.random() - 0.5) * 5;
+      readings.push({ device_id: dev, ts, temperature: +temp.toFixed(1), humidity: +hum.toFixed(1), source: 'device' });
+    }
+  }
+  await fetch('/api/readings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ readings }),
+  });
+  await loadDevices();
+  await loadReadings();
+}
+
+$('refresh-btn').addEventListener('click', loadReadings);
+$('test-btn').addEventListener('click', injectTestData);
+$('device-select').addEventListener('change', loadReadings);
+$('window-select').addEventListener('change', loadReadings);
+$('show-temp').addEventListener('change', renderChart);
+$('show-humidity').addEventListener('change', renderChart);
+
+(async () => { await loadDevices(); await loadReadings(); })();
+</script>
+</body>
+</html>

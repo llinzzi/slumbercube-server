@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radio · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --link: #60a5fa;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 22px; margin-bottom: 20px; }
+    h1 span { color: var(--accent); }
+
+    /* Station cards */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .station-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .station-card:hover { border-color: var(--text-dim); }
+    .station-card.active {
+      border-color: var(--accent);
+      background: rgba(34,197,94,0.08);
+    }
+    .station-card .name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .station-card .name .check { color: var(--accent); margin-right: 4px; }
+    .station-card .meta { font-size: 11px; color: var(--text-dim); }
+
+    /* Player bar */
+    .player-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    /* Source banner (library vs AI playlist) */
+    .source-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      border: 1px solid;
+    }
+    .source-banner.playlist {
+      background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(59,130,246,0.08));
+      border-color: var(--accent);
+    }
+    .source-banner.library {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
+    .source-banner .icon { font-size: 22px; }
+    .source-banner .main { flex: 1; }
+    .source-banner .main .title { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .source-banner .main .sub { font-size: 11px; color: var(--text-dim); }
+    .source-banner .stat {
+      font-family: 'SF Mono', monospace;
+      font-size: 12px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+    }
+    .source-banner.playlist .stat { background: rgba(34,197,94,0.15); color: var(--accent); }
+    .source-banner.library .stat { background: rgba(255,255,255,0.03); }
+
+    /* Playlist card layout (AI mode) */
+    .playlist-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .playlist-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .playlist-card.playing {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(59,130,246,0.06));
+    }
+    .playlist-card .card-num {
+      font-family: 'SF Mono', monospace;
+      font-size: 14px;
+      color: var(--text-dim);
+      min-width: 28px;
+      text-align: center;
+    }
+    .playlist-card.playing .card-num { color: var(--accent); font-weight: 600; }
+
+    /* 开场白卡片 */
+    .preamble-card {
+      background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(59,130,246,0.06));
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .preamble-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .preamble-text {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .playlist-card .card-body { flex: 1; }
+    .playlist-card .card-song { font-size: 14px; font-weight: 500; }
+    .playlist-card .card-intro {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-style: italic;
+      margin-top: 3px;
+    }
+    .playlist-card.playing .card-song { color: var(--accent); }
+    .playlist-card .card-meta { min-width: 80px; text-align: right; }
+    .playlist-card .badge-now {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: rgba(34,197,94,0.15);
+      color: var(--accent);
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .playlist-card.device-active {
+      border-color: var(--info, #3b82f6);
+      background: rgba(59,130,246,0.06);
+    }
+    .playlist-card .badge-device {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: rgba(59,130,246,0.15);
+      color: var(--info, #3b82f6);
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    /* Playlist list row intro text */
+    .intro-text {
+      display: block;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+      font-style: italic;
+    }
+    .play-btn {
+      padding: 6px 16px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .play-btn:hover { background: #16a34a; }
+    .now-playing { font-size: 12px; color: var(--text-dim); flex:1; }
+    .now-playing .val { color: var(--text); font-weight: 500; }
+
+    /* Volume */
+    .vol { display:flex; align-items:center; gap:6px; }
+    .vol input[type=range] {
+      width:80px; height:4px;
+      -webkit-appearance:none; appearance:none;
+      background:var(--surface2); border-radius:2px; outline:none; cursor:pointer;
+    }
+    .vol input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+      background:var(--accent); cursor:pointer; border:none;
+    }
+
+    /* TTS toggle switch */
+    .tts-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tts-toggle input { display: none; }
+    .tts-switch {
+      width: 32px; height: 18px;
+      background: var(--surface2);
+      border-radius: 9px;
+      position: relative;
+      transition: background 0.2s;
+      border: 1px solid var(--border);
+    }
+    .tts-switch::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      background: var(--text-dim);
+      border-radius: 50%;
+      top: 1px; left: 1px;
+      transition: all 0.2s;
+    }
+    .tts-toggle.active .tts-switch { background: var(--accent); border-color: var(--accent); }
+    .tts-toggle.active .tts-switch::after {
+      background: #000;
+      left: 15px;
+    }
+
+    /* File list */
+    .section-title { font-size:12px; font-weight:600; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; }
+    .file-table { width:100%; border-collapse:collapse; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .file-table th { background:var(--surface); padding:6px 10px; text-align:left; font-size:11px; color:var(--text-dim); border-bottom:1px solid var(--border); }
+    .file-table th:last-child, .file-table td:last-child { text-align:right; }
+    .file-table td { padding: 6px 10px; font-size: 12px; border-bottom: 1px solid var(--surface2); }
+    .file-table tr:last-child td { border-bottom:none; }
+    .file-table tr:hover { background:var(--surface); }
+    .playing { background:rgba(34,197,94,0.12) !important; }
+    .playing td:first-child { border-left:2px solid var(--accent); }
+    .nextplay { background:rgba(96,165,250,0.10) !important; }
+    .nextplay td:first-child { border-left:2px solid var(--link); }
+    .file-table tr { cursor: default; }
+    .play-col { width: 40px; text-align: center !important; }
+    .play-btn-sm {
+      cursor: pointer;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      font-size: 13px;
+      padding: 2px 8px;
+      transition: all 0.15s;
+    }
+    .play-btn-sm:hover { background: var(--accent); color: #000; }
+    .play-btn-sm.playing-now { background: var(--accent); color: #000; }
+    #audioPlayer { display: none; }
+    .file-table .num { width: 32px; text-align: center; color: var(--text-dim); font-size: 11px; }
+    .badge-next { font-size: 10px; background: var(--link); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
+    .badge-now { font-size: 10px; background: var(--accent); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
+
+    .footer { font-size:11px; color:var(--text-dim); text-align:center; margin-top:20px; }
+    .server-clock { font-size: 12px; color: var(--accent); text-align: center; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+    /* Weather card */
+    .weather-card {
+      background: linear-gradient(135deg, #1a2332 0%, #1c2938 100%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .weather-left { display: flex; align-items: center; gap: 18px; }
+    .weather-icon { font-size: 32px; line-height: 1; }
+    .weather-temp-main { font-size: 28px; font-weight: 700; color: #fff; }
+    .weather-temp-main sup { font-size: 14px; font-weight: 400; color: var(--text-dim); }
+    .weather-desc { font-size: 12px; color: var(--text-dim); }
+    .weather-range { font-size: 13px; color: var(--text); margin-top: 2px; }
+    .weather-range .hot { color: #f97316; }
+    .weather-range .cold { color: #60a5fa; }
+    .weather-meta { display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); }
+    .weather-meta span { display: flex; align-items: center; gap: 3px; }
+    .weather-city { font-size: 11px; color: var(--text-dim); text-align: right; }
+    .weather-update { font-size: 10px; color: var(--text-dim); text-align: right; }
+    .weather-update sup { font-size: 12px; }
+
+    /* DJ entry in header */
+    .header-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .dj-link {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .dj-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Device selector */
+    .device-select {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-dim);
+      outline: none;
+      cursor: pointer;
+      max-width: 180px;
+    }
+    .device-select:hover { border-color: var(--accent); }
+    .device-select option { background: var(--surface2); color: var(--text); }
+
+    /* Top nav */
+    .top-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .nav-link {
+      font-size: 11px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<h1>🎧 <span>192电台</span></h1>
+
+<div class="top-nav">
+  <a href="/admin/dj" class="nav-link">🎛 92DJ</a>
+  <a href="/history" class="nav-link">📚 历史歌单库</a>
+</div>
+
+<!-- Weather -->
+<div class="weather-card" id="weatherCard">
+  <div class="weather-left">
+    <div class="weather-icon" id="weatherIcon">☁️</div>
+    <div>
+      <div class="weather-temp-main" id="weatherTemp">--<sup>°C</sup></div>
+      <div class="weather-desc" id="weatherDesc">加载中...</div>
+      <div class="weather-range" id="weatherRange"><span class="cold">--°</span> ~ <span class="hot">--°</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="weather-meta">
+      <span>💧 <span id="weatherHumidity">--</span>%</span>
+      <span>🌬 <span id="weatherWind">--</span></span>
+      <span>🤚 <span id="weatherFeels">--</span>°</span>
+    </div>
+    <div class="weather-city" id="weatherCity">余杭</div>
+    <div class="weather-update" id="weatherUpdate">--</div>
+  </div>
+</div>
+
+<!-- Player bar -->
+<div class="player-bar">
+  <a class="play-btn" id="playBtn" href="#" target="_blank">▶ 收听</a>
+  <div class="now-playing"><span id="nowStation">🎧 192电台</span> · <span id="nowSong">—</span></div>
+  <div class="vol">
+    <span style="font-size:12px;color:var(--text-dim);">🔊</span>
+    <input type="range" id="volumeSlider" min="1" max="100" value="80">
+    <span id="volumeDisplay" style="font-size:11px;color:var(--text-dim);min-width:24px;">80</span>
+  </div>
+  <div class="tts-toggle" id="ttsToggle" onclick="toggleTts()">
+    <span class="tts-switch"></span>
+    <span id="ttsLabel">播报</span>
+  </div>
+</div>
+
+<!-- Playlist section -->
+<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+  <span>📋 <span id="listTitle">全部曲目</span></span>
+  <span style="display:flex;gap:6px;align-items:center;">
+    <span id="libraryCount" style="font-size:11px;color:var(--text-dim);"></span>
+    <select id="deviceSelect" class="device-select" onchange="onDeviceChange(this)">
+      <option value="">📡 设备</option>
+    </select>
+    <span id="deviceResetBtn" onclick="resetDevice()" style="font-size:13px;cursor:pointer;display:none;" title="重置到第一首">↺</span>
+  </span>
+</div>
+<table class="file-table">
+  <thead><tr><th class="num">#</th><th>歌曲名</th><th class="play-col">试听</th><th>大小</th></tr></thead>
+  <tbody id="fileBody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-dim);">加载中...</td></tr></tbody>
+</table>
+
+<div class="footer"><span id="lastInfo">—</span></div>
+<div class="server-clock" id="serverClock">🕐 加载中...</div>
+
+<!-- Hidden audio player for in-page preview -->
+<audio id="audioPlayer" controls preload="none"></audio>
+
+</div>
+
+<script>
+async function load() {
+  try {
+    const [src, dev] = await Promise.all([
+      (await fetch('/api/source')).json(),
+      (await fetch('/api/devices')).json().catch(() => ({ devices: [] })),
+    ]);
+    renderSource(src, dev);
+  } catch(e) {}
+}
+
+function renderSource(src, deviceData) {
+  const banner = document.getElementById('sourceBanner');
+  const nowStation = document.getElementById('nowStation');
+  const nowSong = document.getElementById('nowSong');
+  const listTitle = document.getElementById('listTitle');
+  const libraryCount = document.getElementById('libraryCount');
+  const fileBody = document.getElementById('fileBody');
+  const playBtn = document.getElementById('playBtn');
+  const audioPlayer = document.getElementById('audioPlayer');
+
+  // Get selected device cursor
+  const sel = document.getElementById('deviceSelect');
+  const selectedDeviceId = sel ? sel.value : '';
+  const deviceSong = (deviceData && selectedDeviceId)
+    ? deviceData.devices.find(d => d.id === selectedDeviceId)
+    : null;
+  const deviceCursor = deviceSong ? (deviceSong.cursor - 1) : -1;
+
+  if (src.mode === 'playlist' && src.playlist) {
+    // ----- Playlist mode — card layout -----
+    const p = src.playlist;
+    if (!banner) { }
+    const curSong = p.songs[p.current_index] || p.songs[0];
+    nowStation.textContent = '🎧 192电台';
+    nowSong.textContent = curSong ? curSong.name : '—';
+    if (curSong && curSong.stitched_url) playBtn.href = curSong.stitched_url;
+    listTitle.textContent = '🎧 AI 推荐播放列表';
+    if (libraryCount) libraryCount.textContent = `${p.current_index + 1}/${p.total}`;
+
+    // Card layout
+    fileBody.innerHTML = '';
+    const table = document.querySelector('.file-table');
+    if (table) {
+      table.style.display = 'none';
+      let cardList = document.getElementById('cardList');
+      if (!cardList) {
+        cardList = document.createElement('div');
+        cardList.id = 'cardList';
+        cardList.className = 'playlist-cards';
+        table.parentNode.insertBefore(cardList, table);
+      }
+      cardList.style.display = 'block';
+      cardList.innerHTML = p.songs.map((song, i) => {
+        const isPlaying = i === p.current_index;
+        const isDeviceSong = i === deviceCursor && selectedDeviceId;
+        let cls = '';
+        if (isPlaying) cls += ' playing';
+        if (isDeviceSong) cls += ' device-active';
+        const onClick = selectedDeviceId ? `seekDevice('${selectedDeviceId}', ${i})` : '';
+        return `
+          <div class="playlist-card${cls}"${onClick ? ` onclick="${onClick}" style="cursor:pointer;"` : ''}>
+            <div class="card-num">${String(i + 1).padStart(2, '0')}</div>
+            <div class="card-body">
+              <div class="card-song">${song.name}</div>
+              ${song.intro_text ? '<div class="card-intro">' + song.intro_text + '</div>' : ''}
+            </div>
+            <div class="card-meta">
+              ${isPlaying ? '<span class="badge-now">▶ 播放中</span>' : ''}
+              ${isDeviceSong ? '<span class="badge-device">📡 播放中</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    return;
+  }
+
+  // ----- Library mode — 192电台等待中 -----
+  const cardList = document.getElementById('cardList');
+  if (cardList) cardList.style.display = 'none';
+  const table = document.querySelector('.file-table');
+  if (table) table.style.display = '';
+
+  nowStation.textContent = '🎧 192电台';
+  nowSong.textContent = '等待中';
+  listTitle.textContent = '📋 192电台 · 等待播放列表';
+  if (libraryCount) libraryCount.textContent = '0';
+
+  fileBody.innerHTML = `
+    <tr><td colspan="4" style="text-align:center;padding:40px 20px;">
+      <div style="font-size:32px;margin-bottom:12px;">🎧</div>
+      <div style="color:var(--text);font-size:14px;margin-bottom:6px;">192电台正在生成播放列表</div>
+      <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">每天 07:00 / 21:00 自动更新 · 也可手动触发</div>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <a href="/admin/dj" class="dj-link" style="display:inline-block;">🎛 手动触发 92DJ</a>
+        <a href="/history" class="dj-link" style="display:inline-block;">📚 浏览历史歌单库</a>
+      </div>
+    </td></tr>
+  `;
+}
+
+load();
+loadDevices();
+setInterval(load, 5000);
+setInterval(loadDevices, 10000);
+
+async function loadDevices() {
+  try {
+    const r = await fetch('/api/devices');
+    const d = await r.json();
+    const sel = document.getElementById('deviceSelect');
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">📡 设备</option>';
+    if (d.devices.length === 0) {
+      sel.innerHTML += '<option disabled>暂无设备</option>';
+    } else {
+      d.devices.forEach(dev => {
+        const active = dev.active ? '🟢' : '⚪';
+        const label = `${active} ${dev.id} · 第${dev.cursor}/${d.playlist_songs}首`;
+        sel.innerHTML += `<option value="${dev.id}">${label}</option>`;
+      });
+    }
+    if (currentVal) sel.value = currentVal;
+  } catch (e) {}
+}
+
+function onDeviceChange(sel) {
+  const resetBtn = document.getElementById('deviceResetBtn');
+  if (resetBtn) resetBtn.style.display = sel.value ? 'inline' : 'none';
+  if (!sel.value) return;
+  load();  // Re-render to highlight device song
+  loadDevices();
+}
+
+async function seekDevice(deviceId, position) {
+  try {
+    await fetch(`/api/devices/${encodeURIComponent(deviceId)}/seek`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position }),
+    });
+    load();
+    loadDevices();
+  } catch(e) {}
+}
+
+async function resetDevice() {
+  const sel = document.getElementById('deviceSelect');
+  if (!sel || !sel.value) return;
+  await seekDevice(sel.value, 0);
+}
+
+// Weather
+const weatherIcons = {
+  '晴': '☀️', '多云': '⛅', '阴': '☁️',
+  '小雨': '🌦', '中雨': '🌧', '大雨': '🌧', '暴雨': '🌊',
+  '雷阵雨': '⛈', '小雪': '🌨', '中雪': '❄️', '大雪': '❄️',
+  '雾': '🌫', '霾': '😶‍🌫️',
+};
+async function loadWeather() {
+  try {
+    const r = await fetch('/api/weather');
+    const w = await r.json();
+    document.getElementById('weatherIcon').textContent = weatherIcons[w.now.text] || '☁️';
+    document.getElementById('weatherTemp').innerHTML = w.now.temp + '<sup>°C</sup>';
+    document.getElementById('weatherDesc').textContent = w.now.text + ' · 体感' + w.now.feelsLike + '°C';
+    document.getElementById('weatherRange').innerHTML =
+      '<span class="cold">' + w.today.tempMin + '°</span> ~ <span class="hot">' + w.today.tempMax + '°</span>';
+    document.getElementById('weatherHumidity').textContent = w.now.humidity;
+    document.getElementById('weatherWind').textContent = w.now.windDir + w.now.windScale + '级';
+    document.getElementById('weatherFeels').textContent = w.now.feelsLike;
+    document.getElementById('weatherCity').textContent = w.city;
+    document.getElementById('weatherUpdate').textContent = '更新 ' + w.updateTime.slice(11, 16);
+  } catch(e) {
+    document.getElementById('weatherDesc').textContent = '天气加载失败';
+  }
+}
+loadWeather();
+setInterval(loadWeather, 300000); // 每5分钟
+
+// Volume
+(async function() {
+  try {
+    const r = await fetch('/api/volume');
+    const d = await r.json();
+    if (d && d.volume) { document.getElementById('volumeSlider').value = d.volume; document.getElementById('volumeDisplay').textContent = d.volume; }
+  } catch(e) {}
+})();
+document.getElementById('volumeSlider').addEventListener('input', async (e) => {
+  const v = parseInt(e.target.value);
+  document.getElementById('volumeDisplay').textContent = v;
+  await fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: v }) });
+});
+
+// TTS Intro toggle
+async function toggleTts() {
+  try {
+    const el = document.getElementById('ttsToggle');
+    const nowOn = el.classList.contains('active');
+    const r = await fetch('/api/tts-intro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !nowOn })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      el.classList.toggle('active', d.enabled);
+      document.getElementById('ttsLabel').textContent = d.enabled ? '播报中' : '播报';
+    }
+  } catch(e) {}
+}
+// Load initial TTS state
+(async function() {
+  try {
+    const r = await fetch('/api/tts-intro');
+    const d = await r.json();
+    if (d.enabled) {
+      document.getElementById('ttsToggle').classList.add('active');
+      document.getElementById('ttsLabel').textContent = '播报中';
+    }
+  } catch(e) {}
+})();
+
+// Server clock
+async function syncClock() {
+  try {
+    const r = await fetch('/api/time');
+    const d = await r.json();
+    const serverTs = d.ts;
+    const display = document.getElementById('serverClock');
+    // Tick from server time, updating every second
+    const tick = () => {
+      const now = new Date(serverTs + (Date.now() - serverTs));
+      const s = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+      display.textContent = `🕐 ${s}`;
+    };
+    tick();
+    setInterval(tick, 1000);
+  } catch(e) {
+    document.getElementById('serverClock').textContent = '🕐 —';
+  }
+}
+syncClock();
+
+// Play track preview — respects TTS toggle (播报中)
+const audioEl = document.getElementById('audioPlayer');
+let currentPlayBtn = null;
+
+async function playTrack(name, btn) {
+  // Stop current
+  audioEl.pause();
+  audioEl.currentTime = 0;
+  if (currentPlayBtn && currentPlayBtn !== btn) {
+    currentPlayBtn.classList.remove('playing-now');
+    currentPlayBtn.textContent = '▶';
+  }
+
+  // Toggle pause if same song
+  if (currentPlayBtn === btn && audioEl.dataset.song === name) {
+    currentPlayBtn.classList.remove('playing-now');
+    currentPlayBtn.textContent = '▶';
+    currentPlayBtn = null;
+    return;
+  }
+
+  btn.classList.add('playing-now');
+  btn.textContent = '⏹';
+  currentPlayBtn = btn;
+
+  const url = '/audio/local/track/' + encodeURIComponent(name);
+  audioEl.src = url;
+  audioEl.dataset.song = name;
+  audioEl.play().catch(() => {});
+
+  audioEl.onended = () => {
+    btn.classList.remove('playing-now');
+    btn.textContent = '▶';
+    currentPlayBtn = null;
+  };
+}
+</script>
+</body>
+</html>

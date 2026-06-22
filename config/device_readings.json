@@ -1,0 +1,2118 @@
+{
+  "device_readings": [
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:25:54.441Z",
+      "temperature": 24.5,
+      "humidity": 65,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:25:54.442Z",
+      "temperature": 22.1,
+      "humidity": 70,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.064Z",
+      "temperature": 23.7,
+      "humidity": 75.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.065Z",
+      "temperature": 24.8,
+      "humidity": 72.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.065Z",
+      "temperature": 25.9,
+      "humidity": 75.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.065Z",
+      "temperature": 27.3,
+      "humidity": 69.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.065Z",
+      "temperature": 27.8,
+      "humidity": 65.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.066Z",
+      "temperature": 27.7,
+      "humidity": 62.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.066Z",
+      "temperature": 28.1,
+      "humidity": 58.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.066Z",
+      "temperature": 28.3,
+      "humidity": 56,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.066Z",
+      "temperature": 27.4,
+      "humidity": 53.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 27.2,
+      "humidity": 49.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 25.9,
+      "humidity": 47.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 25.3,
+      "humidity": 46.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 24.3,
+      "humidity": 43.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 23,
+      "humidity": 47.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.067Z",
+      "temperature": 22,
+      "humidity": 46.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.068Z",
+      "temperature": 21.5,
+      "humidity": 51.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.068Z",
+      "temperature": 21,
+      "humidity": 50.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.068Z",
+      "temperature": 19.9,
+      "humidity": 57.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.068Z",
+      "temperature": 19.6,
+      "humidity": 62,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 20.6,
+      "humidity": 62.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 20.2,
+      "humidity": 68.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 21.5,
+      "humidity": 68.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 22.5,
+      "humidity": 75,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 22.7,
+      "humidity": 74,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 23.6,
+      "humidity": 74.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 22.1,
+      "humidity": 72.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.069Z",
+      "temperature": 23.2,
+      "humidity": 75.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 24.2,
+      "humidity": 72.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 25,
+      "humidity": 70.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 25.5,
+      "humidity": 67.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 25.8,
+      "humidity": 65.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 26.2,
+      "humidity": 58.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 25.7,
+      "humidity": 54.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 25.6,
+      "humidity": 53.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.070Z",
+      "temperature": 24.6,
+      "humidity": 50.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 23.8,
+      "humidity": 46.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 23,
+      "humidity": 45.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 22.3,
+      "humidity": 44.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 20.7,
+      "humidity": 45.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 19.5,
+      "humidity": 44.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 19.5,
+      "humidity": 49.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 18.3,
+      "humidity": 54.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 18.5,
+      "humidity": 56.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 18,
+      "humidity": 59,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.071Z",
+      "temperature": 17.9,
+      "humidity": 63,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 18.2,
+      "humidity": 69.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 19.2,
+      "humidity": 72.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 20.1,
+      "humidity": 73.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 21.3,
+      "humidity": 74.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 21.7,
+      "humidity": 74,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 25.9,
+      "humidity": 75.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 27,
+      "humidity": 75.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.072Z",
+      "temperature": 28.4,
+      "humidity": 72.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.073Z",
+      "temperature": 28.3,
+      "humidity": 69.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.073Z",
+      "temperature": 29.9,
+      "humidity": 69.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.073Z",
+      "temperature": 30.1,
+      "humidity": 64.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.073Z",
+      "temperature": 29.7,
+      "humidity": 60.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.073Z",
+      "temperature": 30.2,
+      "humidity": 58,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 29.4,
+      "humidity": 53.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 29.1,
+      "humidity": 48.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 27.9,
+      "humidity": 45.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 27.1,
+      "humidity": 44.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 25.6,
+      "humidity": 42.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.074Z",
+      "temperature": 25.1,
+      "humidity": 47.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.075Z",
+      "temperature": 23.6,
+      "humidity": 49.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.075Z",
+      "temperature": 22.7,
+      "humidity": 49,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.075Z",
+      "temperature": 22.4,
+      "humidity": 51.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.075Z",
+      "temperature": 22,
+      "humidity": 55.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.075Z",
+      "temperature": 21.6,
+      "humidity": 59.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.076Z",
+      "temperature": 21.7,
+      "humidity": 61.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.076Z",
+      "temperature": 22.5,
+      "humidity": 65.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.076Z",
+      "temperature": 23.4,
+      "humidity": 70.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.076Z",
+      "temperature": 23.6,
+      "humidity": 73.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.076Z",
+      "temperature": 25,
+      "humidity": 73,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T07:26:12.077Z",
+      "temperature": 26.3,
+      "humidity": 75,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.405Z",
+      "temperature": 24.4,
+      "humidity": 77.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.406Z",
+      "temperature": 25.3,
+      "humidity": 76.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.407Z",
+      "temperature": 25.8,
+      "humidity": 73.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.407Z",
+      "temperature": 26.4,
+      "humidity": 73.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.407Z",
+      "temperature": 27.2,
+      "humidity": 69,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.407Z",
+      "temperature": 27.5,
+      "humidity": 62.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.408Z",
+      "temperature": 28.4,
+      "humidity": 61.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.408Z",
+      "temperature": 27.5,
+      "humidity": 58.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.408Z",
+      "temperature": 27.3,
+      "humidity": 51.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.408Z",
+      "temperature": 27,
+      "humidity": 50.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.408Z",
+      "temperature": 25.8,
+      "humidity": 46.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.409Z",
+      "temperature": 24.7,
+      "humidity": 46.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.409Z",
+      "temperature": 23.6,
+      "humidity": 46.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.409Z",
+      "temperature": 22.6,
+      "humidity": 43.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.409Z",
+      "temperature": 22.3,
+      "humidity": 48.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.410Z",
+      "temperature": 21.6,
+      "humidity": 50,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.410Z",
+      "temperature": 20.4,
+      "humidity": 51,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.410Z",
+      "temperature": 20.3,
+      "humidity": 56.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.411Z",
+      "temperature": 20,
+      "humidity": 58.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.411Z",
+      "temperature": 20.1,
+      "humidity": 63.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.411Z",
+      "temperature": 20.2,
+      "humidity": 67.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.412Z",
+      "temperature": 21.2,
+      "humidity": 68.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.412Z",
+      "temperature": 22.4,
+      "humidity": 74.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.412Z",
+      "temperature": 23.3,
+      "humidity": 76.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:45.412Z",
+      "temperature": 24.5,
+      "humidity": 73.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.413Z",
+      "temperature": 21.7,
+      "humidity": 76.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.413Z",
+      "temperature": 22.6,
+      "humidity": 76.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.413Z",
+      "temperature": 24.1,
+      "humidity": 73.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.413Z",
+      "temperature": 24.9,
+      "humidity": 69.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.414Z",
+      "temperature": 25.4,
+      "humidity": 69.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.414Z",
+      "temperature": 25.8,
+      "humidity": 61.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.414Z",
+      "temperature": 26.3,
+      "humidity": 60,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.414Z",
+      "temperature": 25.7,
+      "humidity": 55.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.415Z",
+      "temperature": 25.2,
+      "humidity": 53.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.415Z",
+      "temperature": 24.7,
+      "humidity": 51.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.415Z",
+      "temperature": 24.3,
+      "humidity": 47.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.415Z",
+      "temperature": 22.7,
+      "humidity": 44.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.416Z",
+      "temperature": 21.8,
+      "humidity": 44.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.416Z",
+      "temperature": 21.3,
+      "humidity": 45.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.416Z",
+      "temperature": 19.5,
+      "humidity": 49,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.416Z",
+      "temperature": 19.6,
+      "humidity": 50.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.417Z",
+      "temperature": 18.9,
+      "humidity": 54.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.417Z",
+      "temperature": 18,
+      "humidity": 55.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.417Z",
+      "temperature": 17.9,
+      "humidity": 57.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.417Z",
+      "temperature": 18.1,
+      "humidity": 63.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.417Z",
+      "temperature": 19,
+      "humidity": 65.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.418Z",
+      "temperature": 19,
+      "humidity": 72.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.418Z",
+      "temperature": 19.8,
+      "humidity": 70.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.418Z",
+      "temperature": 21.2,
+      "humidity": 75.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:45.418Z",
+      "temperature": 21.5,
+      "humidity": 76.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.419Z",
+      "temperature": 26.2,
+      "humidity": 77.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.419Z",
+      "temperature": 27.4,
+      "humidity": 72.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.419Z",
+      "temperature": 28.3,
+      "humidity": 72,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.419Z",
+      "temperature": 28.4,
+      "humidity": 70.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.420Z",
+      "temperature": 29.7,
+      "humidity": 69.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.420Z",
+      "temperature": 29.7,
+      "humidity": 64.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.420Z",
+      "temperature": 30.2,
+      "humidity": 60.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.420Z",
+      "temperature": 30.1,
+      "humidity": 53.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.421Z",
+      "temperature": 29.4,
+      "humidity": 50.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.421Z",
+      "temperature": 28.8,
+      "humidity": 47.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.421Z",
+      "temperature": 28.3,
+      "humidity": 48.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.421Z",
+      "temperature": 26.7,
+      "humidity": 43.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.422Z",
+      "temperature": 25.5,
+      "humidity": 46.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.422Z",
+      "temperature": 24.5,
+      "humidity": 44,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.422Z",
+      "temperature": 23.6,
+      "humidity": 47,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.422Z",
+      "temperature": 23.3,
+      "humidity": 47.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.422Z",
+      "temperature": 22.1,
+      "humidity": 52.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.423Z",
+      "temperature": 22,
+      "humidity": 55.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.423Z",
+      "temperature": 21.5,
+      "humidity": 59.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.423Z",
+      "temperature": 22.5,
+      "humidity": 63.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.423Z",
+      "temperature": 22.1,
+      "humidity": 67.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.423Z",
+      "temperature": 22.9,
+      "humidity": 71.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.424Z",
+      "temperature": 24.2,
+      "humidity": 70.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.424Z",
+      "temperature": 25.4,
+      "humidity": 74.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:45.424Z",
+      "temperature": 26.3,
+      "humidity": 75.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.852Z",
+      "temperature": 23.9,
+      "humidity": 77.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.852Z",
+      "temperature": 25.1,
+      "humidity": 72.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.852Z",
+      "temperature": 25.6,
+      "humidity": 74.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.853Z",
+      "temperature": 26.4,
+      "humidity": 69.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.853Z",
+      "temperature": 27.9,
+      "humidity": 67.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.854Z",
+      "temperature": 27.4,
+      "humidity": 64.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.854Z",
+      "temperature": 28.4,
+      "humidity": 62.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.854Z",
+      "temperature": 27.9,
+      "humidity": 55.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.854Z",
+      "temperature": 27.9,
+      "humidity": 54.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.855Z",
+      "temperature": 27.2,
+      "humidity": 47.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.855Z",
+      "temperature": 25.7,
+      "humidity": 46.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.855Z",
+      "temperature": 24.9,
+      "humidity": 45.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.856Z",
+      "temperature": 23.8,
+      "humidity": 46.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.856Z",
+      "temperature": 23.1,
+      "humidity": 44.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.856Z",
+      "temperature": 21.6,
+      "humidity": 47.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.857Z",
+      "temperature": 21.5,
+      "humidity": 51.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.857Z",
+      "temperature": 20.1,
+      "humidity": 50.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.858Z",
+      "temperature": 19.7,
+      "humidity": 54.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.858Z",
+      "temperature": 19.9,
+      "humidity": 59.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.858Z",
+      "temperature": 19.8,
+      "humidity": 63.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.859Z",
+      "temperature": 20.9,
+      "humidity": 65.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.859Z",
+      "temperature": 20.8,
+      "humidity": 72.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.859Z",
+      "temperature": 21.5,
+      "humidity": 72.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.860Z",
+      "temperature": 23.4,
+      "humidity": 74.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:46.860Z",
+      "temperature": 23.9,
+      "humidity": 76.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.860Z",
+      "temperature": 22,
+      "humidity": 74.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.860Z",
+      "temperature": 22.8,
+      "humidity": 76.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.861Z",
+      "temperature": 23.6,
+      "humidity": 72.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.861Z",
+      "temperature": 24.8,
+      "humidity": 69.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.861Z",
+      "temperature": 25.2,
+      "humidity": 67.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.862Z",
+      "temperature": 25.6,
+      "humidity": 64.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.862Z",
+      "temperature": 26.2,
+      "humidity": 59.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.862Z",
+      "temperature": 26,
+      "humidity": 54.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.862Z",
+      "temperature": 25,
+      "humidity": 50.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.863Z",
+      "temperature": 24.5,
+      "humidity": 47,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.863Z",
+      "temperature": 24.4,
+      "humidity": 48.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.863Z",
+      "temperature": 23,
+      "humidity": 47.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.864Z",
+      "temperature": 22,
+      "humidity": 43.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.864Z",
+      "temperature": 20.5,
+      "humidity": 44.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.864Z",
+      "temperature": 19.7,
+      "humidity": 45.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.864Z",
+      "temperature": 19.4,
+      "humidity": 48.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.865Z",
+      "temperature": 18.6,
+      "humidity": 52,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.865Z",
+      "temperature": 18.2,
+      "humidity": 55.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.865Z",
+      "temperature": 18.3,
+      "humidity": 62.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.866Z",
+      "temperature": 18.6,
+      "humidity": 62.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.866Z",
+      "temperature": 19,
+      "humidity": 65.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.866Z",
+      "temperature": 19.7,
+      "humidity": 73,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.866Z",
+      "temperature": 20.1,
+      "humidity": 71.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.867Z",
+      "temperature": 20.7,
+      "humidity": 75.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:46.867Z",
+      "temperature": 21.9,
+      "humidity": 73.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.867Z",
+      "temperature": 26.2,
+      "humidity": 75.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.868Z",
+      "temperature": 27.5,
+      "humidity": 73.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.868Z",
+      "temperature": 28,
+      "humidity": 70.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.868Z",
+      "temperature": 28.4,
+      "humidity": 71.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.869Z",
+      "temperature": 29.3,
+      "humidity": 66.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.869Z",
+      "temperature": 29.9,
+      "humidity": 65.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.869Z",
+      "temperature": 30,
+      "humidity": 62.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.870Z",
+      "temperature": 29.6,
+      "humidity": 54.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.870Z",
+      "temperature": 29.4,
+      "humidity": 52.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.870Z",
+      "temperature": 29.1,
+      "humidity": 50.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.870Z",
+      "temperature": 27.7,
+      "humidity": 47.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.871Z",
+      "temperature": 27.5,
+      "humidity": 46.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.871Z",
+      "temperature": 26.5,
+      "humidity": 46.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.872Z",
+      "temperature": 25,
+      "humidity": 46.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.872Z",
+      "temperature": 23.7,
+      "humidity": 48.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.872Z",
+      "temperature": 23.1,
+      "humidity": 51.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.872Z",
+      "temperature": 22.8,
+      "humidity": 51,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.873Z",
+      "temperature": 22.5,
+      "humidity": 56.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.873Z",
+      "temperature": 22.2,
+      "humidity": 59.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.873Z",
+      "temperature": 22,
+      "humidity": 61.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.874Z",
+      "temperature": 22.8,
+      "humidity": 66.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.874Z",
+      "temperature": 22.7,
+      "humidity": 70.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.874Z",
+      "temperature": 24.5,
+      "humidity": 75.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.874Z",
+      "temperature": 24.7,
+      "humidity": 74.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:46.875Z",
+      "temperature": 26,
+      "humidity": 74.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.831Z",
+      "temperature": 24.4,
+      "humidity": 74,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.831Z",
+      "temperature": 24.7,
+      "humidity": 72.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.831Z",
+      "temperature": 25.5,
+      "humidity": 72.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.832Z",
+      "temperature": 27.3,
+      "humidity": 72.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.832Z",
+      "temperature": 27.4,
+      "humidity": 69.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.832Z",
+      "temperature": 27.7,
+      "humidity": 63,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.833Z",
+      "temperature": 28.5,
+      "humidity": 58.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.833Z",
+      "temperature": 27.7,
+      "humidity": 56.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.834Z",
+      "temperature": 27.2,
+      "humidity": 53.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.834Z",
+      "temperature": 27.2,
+      "humidity": 46.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.834Z",
+      "temperature": 26,
+      "humidity": 48,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.835Z",
+      "temperature": 24.9,
+      "humidity": 47.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.835Z",
+      "temperature": 24.3,
+      "humidity": 43.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.835Z",
+      "temperature": 22.6,
+      "humidity": 45.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.835Z",
+      "temperature": 22.4,
+      "humidity": 47.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.836Z",
+      "temperature": 21.6,
+      "humidity": 51.8,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.836Z",
+      "temperature": 20.1,
+      "humidity": 53.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.837Z",
+      "temperature": 19.7,
+      "humidity": 57.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.837Z",
+      "temperature": 20.3,
+      "humidity": 61.3,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.837Z",
+      "temperature": 20.6,
+      "humidity": 63,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.838Z",
+      "temperature": 20.5,
+      "humidity": 68.4,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.838Z",
+      "temperature": 21.6,
+      "humidity": 71.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.838Z",
+      "temperature": 22.2,
+      "humidity": 70.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.839Z",
+      "temperature": 22.9,
+      "humidity": 76.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-192",
+      "ts": "2026-06-21T09:09:47.839Z",
+      "temperature": 24,
+      "humidity": 76.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.839Z",
+      "temperature": 22.1,
+      "humidity": 76.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.840Z",
+      "temperature": 22.7,
+      "humidity": 74.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.840Z",
+      "temperature": 24.2,
+      "humidity": 71.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.840Z",
+      "temperature": 25.3,
+      "humidity": 70.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.841Z",
+      "temperature": 26,
+      "humidity": 65.7,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.841Z",
+      "temperature": 25.8,
+      "humidity": 62,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.841Z",
+      "temperature": 26,
+      "humidity": 61.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.842Z",
+      "temperature": 25.6,
+      "humidity": 55.6,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.842Z",
+      "temperature": 25,
+      "humidity": 50,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.842Z",
+      "temperature": 24.9,
+      "humidity": 48.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.842Z",
+      "temperature": 24,
+      "humidity": 49,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.843Z",
+      "temperature": 23,
+      "humidity": 43.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.843Z",
+      "temperature": 22.1,
+      "humidity": 46.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.843Z",
+      "temperature": 21,
+      "humidity": 44,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.844Z",
+      "temperature": 20.4,
+      "humidity": 45.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.844Z",
+      "temperature": 19.5,
+      "humidity": 47.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.844Z",
+      "temperature": 18.2,
+      "humidity": 53.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.845Z",
+      "temperature": 18.6,
+      "humidity": 55.5,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.845Z",
+      "temperature": 18.2,
+      "humidity": 61,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.845Z",
+      "temperature": 18.3,
+      "humidity": 64.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.846Z",
+      "temperature": 18.9,
+      "humidity": 65.1,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.846Z",
+      "temperature": 19.1,
+      "humidity": 69.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.846Z",
+      "temperature": 20.2,
+      "humidity": 74.9,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.846Z",
+      "temperature": 21.5,
+      "humidity": 76.2,
+      "source": "device"
+    },
+    {
+      "device_id": "esp32-rack",
+      "ts": "2026-06-21T09:09:47.847Z",
+      "temperature": 22.1,
+      "humidity": 73.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.847Z",
+      "temperature": 25.7,
+      "humidity": 74.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.847Z",
+      "temperature": 27.3,
+      "humidity": 75.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.848Z",
+      "temperature": 28.4,
+      "humidity": 72.7,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.848Z",
+      "temperature": 28.4,
+      "humidity": 72.8,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.848Z",
+      "temperature": 29.5,
+      "humidity": 68.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.849Z",
+      "temperature": 30,
+      "humidity": 62.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.849Z",
+      "temperature": 30.4,
+      "humidity": 58.9,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.849Z",
+      "temperature": 30,
+      "humidity": 55.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.850Z",
+      "temperature": 29.8,
+      "humidity": 51.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.850Z",
+      "temperature": 28.4,
+      "humidity": 47.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.850Z",
+      "temperature": 28,
+      "humidity": 45,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.851Z",
+      "temperature": 27.2,
+      "humidity": 45.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.851Z",
+      "temperature": 25.7,
+      "humidity": 47.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.851Z",
+      "temperature": 24.7,
+      "humidity": 46.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.852Z",
+      "temperature": 23.6,
+      "humidity": 48.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.852Z",
+      "temperature": 23.2,
+      "humidity": 50.3,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.852Z",
+      "temperature": 22.7,
+      "humidity": 52,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.853Z",
+      "temperature": 22.4,
+      "humidity": 58.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.853Z",
+      "temperature": 21.6,
+      "humidity": 57.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.853Z",
+      "temperature": 21.7,
+      "humidity": 62.5,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.854Z",
+      "temperature": 22.5,
+      "humidity": 66.4,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.854Z",
+      "temperature": 23.3,
+      "humidity": 69.2,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.854Z",
+      "temperature": 23.6,
+      "humidity": 72.1,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.855Z",
+      "temperature": 25.3,
+      "humidity": 74.6,
+      "source": "device"
+    },
+    {
+      "device_id": "desk-sensor",
+      "ts": "2026-06-21T09:09:47.855Z",
+      "temperature": 26.4,
+      "humidity": 73.3,
+      "source": "device"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "游戏",
+  "trigger": "0 12 * * *",
+  "keywords": ["欢乐派对", "游戏BGM", "派对", "蹦跳", "互动游戏", "Party"],
+  "tts_interval_songs": 3,
+  "interrupt_on_scene_change": false,
+  "allow_repeat_same_day": true,
+  "allow_repeat_next_day": true,
+  "min_song_count": 20
+}

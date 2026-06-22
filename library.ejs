@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>曲目库 · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --accent-dim: #16a34a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+    .back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+    .back:hover { color: var(--accent); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface2);
+      cursor: pointer;
+      user-select: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-header:hover { background: var(--border); }
+    .card-header .count { font-size: 11px; font-weight: 400; color: var(--text-dim); }
+    .card-header .batch-btn {
+      font-size: 11px;
+      padding: 2px 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-dim);
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .card-header .batch-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .card-body { padding: 0; }
+    .song-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 16px;
+      border-bottom: 1px solid var(--surface2);
+      font-size: 13px;
+      transition: background 0.1s;
+    }
+    .song-row:hover { background: var(--surface2); }
+    .song-row:last-child { border-bottom: none; }
+
+    .song-row input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      background: transparent;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .song-row input[type="checkbox"]:checked {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      position: relative;
+    }
+    .song-row input[type="checkbox"]:checked::after {
+      content: '✓';
+      color: #fff;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 16px;
+    }
+    .song-row .song-name { flex: 1; }
+    .song-row .song-name.inactive { color: var(--text-dim); opacity: 0.5; }
+    .song-row .song-size { font-size: 11px; color: var(--text-dim); min-width: 50px; text-align: right; }
+
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 10px 16px;
+      font-size: 12px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--surface2);
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stats-bar .highlight { color: var(--accent); font-weight: 600; }
+
+    .search {
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search:focus { border-color: var(--accent); }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 12px 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.25s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: var(--err); }
+
+    /* Folder icon */
+    .folder-icon {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--text-dim);
+      transition: transform 0.15s;
+      margin-right: 4px;
+    }
+    .folder-icon.open { transform: rotate(90deg); }
+  </style>
+</head>
+<body>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <a href="/" class="back">← 电台首页</a>
+    <span style="color:var(--text-dim);">·</span>
+    <a href="/admin/dj" class="back">🎛 DJ Agent</a>
+  </div>
+  <h1>📀 曲目库</h1>
+  <div class="subtitle">勾选参与 192电台 选歌的曲目，取消勾选即排除</div>
+
+  <input class="search" id="search" placeholder="搜索曲目..." oninput="filterSongs()">
+
+  <div id="library-root"><div class="meta" style="color:var(--text-dim);padding:24px;text-align:center;">加载中...</div></div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let data = null;
+
+    function toast(msg, isError = false) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (isError ? ' error' : '');
+      setTimeout(() => el.className = 'toast', 2500);
+    }
+
+    async function api(path, opts = {}) {
+      const r = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      return d;
+    }
+
+    async function toggleSong(name, el) {
+      const active = el.checked;
+      try {
+        await api('/api/library/toggle', {
+          method: 'POST',
+          body: JSON.stringify({ name, active }),
+        });
+        // Update visual
+        const nameEl = el.closest('.song-row').querySelector('.song-name');
+        nameEl.classList.toggle('inactive', !active);
+        updateStats();
+      } catch (e) {
+        el.checked = !active;
+        toast(`操作失败: ${e.message}`, true);
+      }
+    }
+
+    async function batchToggle(station, exclude) {
+      const label = exclude ? '全部排除' : '全部参与';
+      try {
+        await api('/api/library/batch-toggle', {
+          method: 'POST',
+          body: JSON.stringify({ station, exclude }),
+        });
+        toast(`${station}: ${label}`);
+        loadLibrary();
+      } catch (e) {
+        toast(`操作失败: ${e.message}`, true);
+      }
+    }
+
+    async function loadLibrary() {
+      try {
+        data = await api('/api/library');
+        render();
+      } catch (e) {
+        $('library-root').innerHTML = `<div class="meta" style="color:var(--err);padding:24px;">加载失败: ${e.message}</div>`;
+      }
+    }
+
+    function render() {
+      const root = $('library-root');
+      const q = ($('search').value || '').toLowerCase().trim();
+      let totalActive = 0;
+      let totalAll = 0;
+
+      root.innerHTML = data.stations.map(st => {
+        const songs = q
+          ? st.songs.filter(s => s.name.toLowerCase().includes(q))
+          : st.songs;
+        if (songs.length === 0) return '';
+        const stationActive = songs.filter(s => s.active).length;
+        totalActive += stationActive;
+        totalAll += songs.length;
+        const autoExpand = q.length > 0;
+
+        return `
+          <div class="card">
+            <div class="card-header" onclick="toggleStation(this)">
+              <span><span class="folder-icon">▶</span> ${st.name} <span class="count">${stationActive}/${songs.length} 首参与</span></span>
+              <span>
+                <span class="batch-btn" onclick="event.stopPropagation();batchToggle('${st.id}',true)">全部排除</span>
+                <span class="batch-btn" onclick="event.stopPropagation();batchToggle('${st.id}',false)">全部参与</span>
+              </span>
+            </div>
+            <div class="card-body" style="display:${autoExpand ? 'block' : 'none'};">
+              ${songs.map(s => `
+                <div class="song-row">
+                  <input type="checkbox" ${s.active ? 'checked' : ''} onchange="toggleSong('${s.name.replace(/'/g, "\\'")}', this)">
+                  <span class="song-name${s.active ? '' : ' inactive'}">${s.name}</span>
+                  <span class="song-size">${s.sizeMB}MB</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (!q) {
+        root.innerHTML += `<div class="stats-bar"><span>总计 <span class="highlight">${totalActive}/${totalAll}</span> 首参与 192电台</span><span style="font-size:11px;color:var(--text-dim);">取消勾选的曲目不会出现在 192电台 选歌列表中</span></div>`;
+      }
+    }
+
+    function updateStats() {
+      // Re-render lightly — just update the count labels
+      loadLibrary();
+    }
+
+    function filterSongs() { render(); }
+
+    function toggleStation(headerEl) {
+      const body = headerEl.nextElementSibling;
+      const icon = headerEl.querySelector('.folder-icon');
+      if (!body) return;
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : 'block';
+      if (icon) icon.classList.toggle('open', !isOpen);
+    }
+
+    loadLibrary();
+  </script>
+</body>
+</html>

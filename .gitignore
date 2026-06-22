@@ -1,0 +1,8 @@
+node_modules/
+.radio_playlist/
+data/
+*.log
+*.bak
+*.bak.*
+.DS_Store
+/tmp/

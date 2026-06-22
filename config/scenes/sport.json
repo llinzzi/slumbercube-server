@@ -1,0 +1,10 @@
+{
+  "name": "运动",
+  "trigger": "30 17 * * *",
+  "keywords": ["运动", "健身", "跑步", "节奏感", "燃脂", "Workout"],
+  "tts_interval_songs": 3,
+  "interrupt_on_scene_change": false,
+  "allow_repeat_same_day": true,
+  "allow_repeat_next_day": true,
+  "min_song_count": 20
+}

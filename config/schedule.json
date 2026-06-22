@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "evening",
+      "label": "夜深了",
+      "hour": 21,
+      "minute": 0,
+      "batch": "evening",
+      "scene": "night",
+      "enabled": true,
+      "volume": 4
+    },
+    {
+      "id": "morning",
+      "label": "早安",
+      "hour": 7,
+      "minute": 0,
+      "batch": "morning",
+      "scene": "morning",
+      "enabled": true,
+      "volume": 5
+    }
+  ]
+}

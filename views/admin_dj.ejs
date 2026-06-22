@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>92DJ · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --accent-dim: #16a34a;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --info: #3b82f6;
+      --running: #22c55e;
+      --persona-mom: #ec4899;
+      --persona-dad: #3b82f6;
+      --persona-deer: #f59e0b;
+      --persona-grandpa: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+    .back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+    .back:hover { color: var(--accent); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 14px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .grow { flex: 1; }
+
+    /* State badge */
+    .state-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .state-idle { background: var(--surface2); color: var(--text-dim); }
+    .state-running { background: rgba(34,197,94,0.15); color: var(--running); }
+    .state-cancelling { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .state-done { background: rgba(59,130,246,0.15); color: var(--info); }
+    .state-failed { background: rgba(239,68,68,0.15); color: var(--err); }
+    .state-cancelled { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Progress */
+    .progress-bar { width: 100%; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); transition: width 0.4s ease; }
+    .progress-text { font-size: 12px; color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; }
+    .meta { font-size: 12px; color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; }
+    .meta strong { color: var(--text); font-weight: 500; }
+    .phase-done { color: var(--text-dim); }
+    .phase-active { color: var(--accent); font-weight: 500; }
+    .phase-pending { color: var(--text-dim); opacity: 0.5; }
+
+    /* Buttons */
+    .btn {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; font-size: 13px;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .btn:hover:not(:disabled) { background: var(--border); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent); }
+    .btn-danger { border-color: var(--err); color: var(--err); }
+    .btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.15); }
+    .btn-ghost { background: transparent; }
+
+    /* ============================================ */
+    /* PERSONA GRID  (核心面板)                     */
+    /* ============================================ */
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 720px) {
+      .persona-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .persona-card {
+      background: var(--surface2);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 16px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      position: relative;
+    }
+    .persona-card:hover { transform: translateY(-2px); }
+    .persona-card.selected { border-color: var(--accent); background: rgba(34,197,94,0.08); }
+    .persona-card.disabled { opacity: 0.4; cursor: not-allowed; }
+    .persona-avatar {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      margin: 0 auto 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      color: #fff;
+    }
+    .persona-card[data-persona="mom"] .persona-avatar { background: var(--persona-mom); }
+    .persona-card[data-persona="dad"] .persona-avatar { background: var(--persona-dad); }
+    .persona-card[data-persona="deer_sister"] .persona-avatar { background: var(--persona-deer); }
+    .persona-card[data-persona="grandpa"] .persona-avatar { background: var(--persona-grandpa); }
+    .persona-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .persona-style { font-size: 11px; color: var(--text-dim); }
+    .persona-batch-tag {
+      position: absolute; top: 6px; right: 6px;
+      font-size: 9px; padding: 2px 6px;
+      background: var(--border); border-radius: 3px;
+      color: var(--text-dim);
+    }
+
+    .action-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .action-row .btn { flex: 1; min-width: 120px; }
+
+    /* Result / last playlist */
+      text-align: center;
+    }
+
+    /* Netease search */
+    .netease-search { display: flex; gap: 8px; margin-bottom: 12px; }
+    .netease-search input {
+      flex: 1; background: var(--surface2);
+      border: 1px solid var(--border); color: var(--text);
+      border-radius: 4px; padding: 8px 12px; font-size: 13px;
+      font-family: inherit;
+    }
+    .netease-search input:focus { outline: none; border-color: var(--accent); }
+    .netease-results { display: flex; flex-direction: column; gap: 4px; }
+    .netease-hit {
+      display: grid;
+      grid-template-columns: 1fr 100px 80px;
+      gap: 8px; align-items: center;
+      padding: 8px 10px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .netease-hit .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .netease-hit .artist { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .netease-hit .duration { color: var(--text-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+    .netease-hit.vip { opacity: 0.5; }
+    .netease-hit .vip-badge { color: var(--warn); font-size: 10px; }
+
+    /* History */
+    .history-list { display: flex; flex-direction: column; gap: 6px; }
+    .history-item {
+      display: grid;
+      grid-template-columns: 36px 1fr 80px 60px 100px 60px;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 12px;
+      align-items: center;
+    }
+    .history-item .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff;
+    }
+    .history-item .avatar[data-persona="mom"] { background: var(--persona-mom); }
+    .history-item .avatar[data-persona="dad"] { background: var(--persona-dad); }
+    .history-item .avatar[data-persona="deer_sister"] { background: var(--persona-deer); }
+    .history-item .avatar[data-persona="grandpa"] { background: var(--persona-grandpa); }
+    .history-item .avatar[data-persona="random"] { background: var(--border); }
+    .history-item .time { color: var(--text-dim); font-family: 'SF Mono', monospace; }
+    .history-item .batch-label { font-weight: 500; }
+    .history-item .persona-name { color: var(--text-dim); font-size: 11px; }
+
+
+    /* Vibe editor (collapsed by default) */
+    details.editor summary {
+      cursor: pointer; padding: 8px 0;
+      font-weight: 600; font-size: 13px;
+      color: var(--text-dim);
+    }
+    details.editor summary:hover { color: var(--accent); }
+    details.editor[open] summary { color: var(--accent); }
+    .vibe-editor details.persona-config { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    .vibe-editor details.persona-config:last-child { border-bottom: none; }
+    .vibe-editor label { display: block; font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
+    .vibe-editor textarea {
+      width: 100%; min-height: 60px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text);
+      padding: 8px; font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px; line-height: 1.5; resize: vertical;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--accent);
+      border-radius: 4px; padding: 12px 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0; transform: translateY(20px);
+      transition: all 0.25s; z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: var(--err); }
+  
+        /* Scene manager unified table (compact + polished) */
+    .scene-table-header {
+      display: grid;
+      grid-template-columns: 60px 1.2fr 1.8fr 130px 36px 28px;
+      gap: 8px; padding: 6px 10px;
+      font-size: 9px; color: var(--text-dim); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 4px;
+    }
+    .scene-table-header .small { text-align: center; }
+    .scene-list { display: flex; flex-direction: column; gap: 4px; }
+    .scene-row {
+      display: grid;
+      grid-template-columns: 60px 1.2fr 1.8fr 130px 36px 28px;
+      gap: 8px; align-items: center;
+      background: var(--surface2); padding: 6px 10px;
+      border-radius: 6px; font-size: 12px;
+      border: 1px solid transparent;
+      transition: all 0.1s ease;
+      min-height: 44px;
+    }
+    .scene-row:nth-child(even) { background: var(--bg); }
+    .scene-row:hover { border-color: var(--border); }
+    .scene-row.disabled { opacity: 0.3; }
+    .scene-row .col-scene {
+      display: flex; flex-direction: column; align-items: center; gap: 1px;
+    }
+    .scene-row .scene-icon { font-size: 18px; line-height: 1.2; }
+    .scene-row .scene-name {
+      font-weight: 600; font-size: 9px; color: var(--accent);
+      background: rgba(34,197,94,0.1); padding: 1px 6px;
+      border-radius: 3px; white-space: nowrap;
+    }
+    .scene-row input[type=text],
+    .scene-row input[type=time],
+    .scene-row textarea {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 4px 7px; font-size: 12px; font-family: inherit;
+      width: 100%; transition: border-color 0.1s;
+    }
+    .scene-row input:focus, .scene-row textarea:focus {
+      border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px rgba(34,197,94,0.2);
+    }
+    .scene-row input[type=text] { font-weight: 500; }
+    .scene-row input[type=time] { font-family: monospace; width: 80px; font-size: 12px; text-align: center; }
+    .scene-row textarea { font-size: 11px; min-height: 32px; max-height: 52px; line-height: 1.4; }
+    .scene-row .col-schedule { display: flex; flex-direction: column; gap: 2px; }
+    .scene-row .sch-toggle {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--bg); padding: 2px 6px;
+      border-radius: 5px; border: 1px solid var(--border);
+    }
+    .scene-row .sch-next { font-size: 9px; color: var(--text-dim); line-height: 1.1; }
+    .scene-row .btn-run {
+      background: var(--accent); color: #000; border: none;
+      border-radius: 50%; width: 28px; height: 28px;
+      font-size: 13px; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: all 0.1s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .scene-row .btn-run:hover { transform: scale(1.12); background: #2ee070; }
+    .scene-row .btn-run:active { transform: scale(0.9); }
+    .del-btn {
+      cursor: pointer; color: var(--text-dim); background: transparent;
+      border: none; font-size: 13px; padding: 2px 4px;
+      border-radius: 3px; transition: all 0.1s; line-height: 1;
+    }
+    .del-btn:hover { color: #f44; background: rgba(255,68,68,0.08); }
+
+    /* NCM keyword tags */
+    .kw-tags {
+      display: flex; flex-wrap: wrap; gap: 3px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; padding: 4px; min-height: 30px;
+      align-items: center;
+    }
+    .kw-tag {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: var(--accent); color: #000; font-size: 11px;
+      padding: 2px 8px; border-radius: 10px; font-weight: 500;
+      line-height: 1.4;
+    }
+    .kw-tag .kw-del { cursor: pointer; font-size: 10px; opacity: 0.5; padding: 0 2px; }
+    .kw-tag .kw-del:hover { opacity: 1; }
+    .kw-add { border: none; background: transparent; color: var(--text-dim); font-size: 11px; padding: 2px 4px; min-width: 60px; flex: 1; outline: none; }
+    .kw-add:focus { color: var(--text); }
+    .kw-add::placeholder { color: var(--text-dim); font-size: 10px; }
+
+    .sch-vol { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+    .vol-icon { font-size: 10px; color: var(--text-dim); }
+    .vol-input {
+      width: 40px; background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 2px 4px; font-size: 11px; text-align: center;
+      font-family: monospace;
+    }
+    .vol-input:focus { border-color: var(--accent); outline: none; }
+
+    .col-label { display: flex; flex-direction: column; gap: 3px; }
+    .label-preview { font-size: 10px; color: var(--text-dim); background: var(--bg); padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+    .label-preview .label-hint { color: var(--accent); font-weight: 600; }
+
+</style>
+</head>
+<body>
+  <a href="/" class="back">← 返回电台首页</a>
+  <h1 style="margin-top: 8px;">🎧 92DJ</h1>
+  <div class="subtitle">192电台 的多主持人播报控制台</div>
+
+  <!-- ====== 1. 当前状态 ====== -->
+  <div class="card">
+    <h2>📡 当前状态</h2>
+    <div class="row">
+      <span id="state-badge" class="state-badge state-idle">IDLE</span>
+      <span id="batch-label" class="meta"></span>
+      <span id="persona-label" class="meta"></span>
+      <span class="grow"></span>
+      <button id="cancel-btn" class="btn btn-danger" disabled>取消任务</button>
+    </div>
+
+    <div id="phase-steps" style="display:none; margin-top:16px;">
+      <div id="phase-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div id="progress-container" style="display: none; margin-top: 12px;">
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <span id="progress-detail" class="progress-text"></span>
+        <span class="grow"></span>
+        <span id="eta-text" class="progress-text"></span>
+      </div>
+      <div class="row" style="margin-top:4px;">
+        <span id="progress-stats" class="meta" style="font-size:11px;"></span>
+      </div>    </div>
+
+    <div id="selected-songs-card" style="display:none; margin-top:12px;">
+      <div class="meta" style="margin-bottom:6px;">🎯 已选歌曲 <span id="selected-count">0</span> 首</div>
+      <div id="selected-songs-list" style="font-size:12px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+    </div>
+
+    <!-- 完整 run 历史：每次 trigger 一条 entry，含搜索详情 + LLM 详情 -->
+    <!-- 紧跟 selected-songs-card 下方；按次折叠（点开看完整信息） -->
+    <div id="run-history-card" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <div class="meta" style="margin-bottom:8px; font-weight:600;">
+        📚 运行历史 <span id="run-history-count" class="meta" style="font-weight:400;margin-left:8px;"></span>
+      </div>
+      <div id="llm-history-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- LLM Prompt 配置（可编辑 + 保存到 config/intro_prompts.json） -->
+    <div id="intro-prompts-card" style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <div class="meta" style="margin-bottom:8px; font-weight:600;">
+        🎙️ LLM Prompt 配置
+        <span id="intro-prompts-status" class="meta" style="font-weight:400;margin-left:8px;color:var(--text-dim);">加载中…</span>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">📋 System Prompt</div>
+        <textarea id="ip-system" rows="4" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">💬 User Template（${sceneHint} ${songs.length} ${songList} ${weatherToday} ${weatherTomorrow} 占位符）</div>
+        <textarea id="ip-user" rows="5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="meta">🌐 场景标签 & 关键词在下方 <strong>🗂️ 场景任务管理</strong> 卡片里编辑</span>
+        <span id="ip-scene-count" class="meta" style="font-size:11px;color:var(--text-dim);"></span>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🆘 Fallback Intro（LLM 失败时使用，${name} 占位符）</div>
+        <input id="ip-fallback" type="text" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;" />
+      </div>
+
+      <details style="margin-bottom:8px;">
+        <summary style="cursor:pointer;color:var(--text-dim);font-size:12px;padding:4px 0;">
+          👁️ 实时预览（用上一次 trigger 的 1 首歌做渲染样例）
+        </summary>
+        <div id="ip-preview" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-word;margin:4px 0 0;"></div>
+      </details>
+
+      <div style="display:flex;gap:8px;">
+        <button id="ip-save" class="btn btn-primary">💾 保存到 config/intro_prompts.json</button>
+        <button id="ip-reset" class="btn">↩️ 恢复默认</button>
+        <button id="ip-preview-btn" class="btn">🔄 刷新预览</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 2+3 合并: 场景任务管理 ====== -->
+  <div class="card" id="scene-manager">
+    <h2>🗂️ 场景任务管理</h2>
+    <div class="meta" style="margin-bottom:10px;">
+      <span>每个场景配置 <strong>LLM 提示标签</strong>、<strong>NCM 搜索关键词</strong> 和 <strong>定时自动执行</strong>。
+      点 🏃 立即跑手动触发，☑ 启用定时的场景到点自动跑 crontab。</span>
+    </div>
+
+    <div id="scene-table-header" class="scene-table-header">
+      <span class="col-scene">场景</span>
+      <span class="col-label">LLM 标签</span>
+      <span class="col-keywords">NCM 搜索词</span>
+      <span class="col-schedule">定时</span>
+      <span class="col-run small">🏃</span>
+      <span class="col-del small">✕</span>
+    </div>
+    <div id="scene-list" class="scene-list"></div>
+
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+      <button id="scene-add-schedule" class="btn">➕ 添加定时场景</button>
+      <button id="scene-save" class="btn btn-primary">💾 保存全部</button>
+      <button id="scene-defaults" class="btn">↩️ 恢复默认</button>
+      <span style="flex:1;"></span>
+      <span id="scene-saved-ts" class="meta" style="font-size:11px;color:var(--text-dim);"></span>
+    </div>
+  </div>
+  <!-- ====== 4. 网易云搜歌 ====== -->
+  <div class="card">
+    <h2>🔍 网易云搜歌</h2>
+    <div class="netease-search">
+      <input id="netease-q" placeholder="输入歌名 / 歌手，回车搜索..." />
+      <button class="btn" id="netease-search-btn">搜索</button>
+    </div>
+    <div id="netease-results" class="netease-results">
+      <div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索（数据走本地 sidecar 代理）</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    // escapeHtml used by many render functions below. Declared as a
+    // const arrow function (not function declaration) so it doesn't
+    // get tangled with TDZ semantics, and we expose it on window
+    // explicitly so inline `onclick="fetchNeteaseUrl(...escapeHtml(s.name)...)"`
+    // strings can resolve it via the global scope.
+    const escapeHtml = (s) => String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    window.escapeHtml = escapeHtml;
+    // Lightweight CSS attribute-selector escaper. The scene keys we
+    // deal with are ASCII identifiers, so a strict version is fine.
+    const cssEscape = (s) => String(s).replace(/(["\\\]])/g, '\\$1');
+    window.cssEscape = cssEscape;
+    let pollHandle = null;
+    let lastStatus = null;
+    let personas = [];           // loaded from /api/dj/personas
+    let selectedPersona = null;  // null = random; otherwise persona.id
+
+    const PERSONA_ICONS = {
+      mom: '👩',
+      dad: '👨',
+      deer_sister: '🦌',
+      grandpa: '👴',
+      random: '🎲',
+    };
+    const PERSONA_DESCRIPTIONS = {
+      mom: '温柔 · 哄睡 · 讲故事',
+      dad: '活泼 · 玩闹 · 小英雄',
+      deer_sister: 'DJ风 · 节奏 · 蹦跳',
+      grandpa: '老故事 · 慢节奏 · 慢摇扇',
+    };
+    const BATCH_LABELS = {
+      morning: '🌅 早安',
+      evening: '🌙 晚安',
+      manual: '⚡ 立即',
+    };
+
+    function toast(msg, isError = false) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (isError ? ' error' : '');
+      setTimeout(() => el.className = 'toast', 2500);
+    }
+
+    // 给一个 ISO 时间字符串，返回它在 Asia/Shanghai 时区下的 ymd/hh/mm/ss。
+    // 服务器/Node 端所有时间都是 UTC（new Date().toISOString()），所以这里
+    // 必须显式转 Beijing，否则用户在日本/美国打开页面看到的就是当地时区，
+    // 跟"实际运行时间"对不上。"今天/昨天"也按 Beijing 日期判断。
+    const SH_TZ = 'Asia/Shanghai';
+    function shanghaiParts(iso) {
+      const d = new Date(iso);
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: SH_TZ, hour12: false,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(d);
+      const get = (type) => parts.find(p => p.type === type)?.value;
+      // en-CA 偶尔会输出 '24' 作为 24:00 的简写
+      const hour = get('hour') === '24' ? '00' : get('hour');
+      return {
+        ymd: `${get('year')}-${get('month')}-${get('day')}`,
+        hh: hour, mm: get('minute'), ss: get('second'),
+      };
+    }
+    function shanghaiTodayYmd() { return shanghaiParts(new Date().toISOString()).ymd; }
+    function shanghaiYesterdayYmd() {
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      return shanghaiParts(y.toISOString()).ymd;
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const p = shanghaiParts(iso);
+      return `${p.ymd.slice(5)} ${p.hh}:${p.mm}:${p.ss}`;
+    }
+    function fmtRelative(iso) {
+      if (!iso) return '';
+      const p = shanghaiParts(iso);
+      if (p.ymd === shanghaiTodayYmd()) return `今天 ${p.hh}:${p.mm}`;
+      if (p.ymd === shanghaiYesterdayYmd()) return `昨天 ${p.hh}:${p.mm}`;
+      return `${Number(p.ymd.slice(5, 7))}/${Number(p.ymd.slice(8, 10))} ${p.hh}:${p.mm}`;
+    }
+    function fmtDuration(sec) {
+      if (sec == null) return '';
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}m${s}s`;
+    }
+    function fmtClock(sec) {
+      if (sec == null) return '';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    async function api(path, options = {}) {
+      // If `body` is a plain object, JSON-encode it. fetch() requires
+      // body to be a string / FormData / Blob / etc.
+      const opts = { ...options };
+      if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+        opts.body = JSON.stringify(opts.body);
+      }
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    // ---- Persona grid ----
+    async function loadPersonas() {
+      try {
+        personas = await api('/api/dj/personas');
+        renderPersonaGrid();
+      } catch (e) {
+        $('persona-grid').innerHTML =
+          `<div class="meta" style="color:var(--err);grid-column:1/-1;padding:24px;text-align:center;">加载主持人失败: ${e.message}</div>`;
+      }
+    }
+    function renderPersonaGrid() {
+      $('persona-grid').innerHTML = personas.map(p => `
+        <div class="persona-card" data-persona="${p.id}" data-batch="${p.batch}" onclick="selectPersona('${p.id}')">
+          <div class="persona-avatar">${PERSONA_ICONS[p.id] || '🎙️'}</div>
+          <div class="persona-name">${p.name}</div>
+          <div class="persona-style">${PERSONA_DESCRIPTIONS[p.id] || p.label}</div>
+          <div class="persona-batch-tag">${BATCH_LABELS[p.batch] || p.batch}</div>
+        </div>
+      `).join('');
+      updatePersonaSelection();
+    }
+    function selectPersona(id) {
+      // Click again to deselect (back to random)
+      if (selectedPersona === id) selectedPersona = null;
+      else selectedPersona = id;
+      updatePersonaSelection();
+    }
+    function updatePersonaSelection() {
+      document.querySelectorAll('.persona-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.persona === selectedPersona);
+      });
+      if (selectedPersona) {
+        const p = personas.find(x => x.id === selectedPersona);
+        $('current-selection-hint').textContent =
+          `已锁定: ${p.name} (${BATCH_LABELS[p.batch] || p.batch}) — 上面任一按钮会带上 TA`;
+      } else {
+        $('current-selection-hint').textContent =
+          '提示：点上方任意主持人卡片可锁定/解锁（不选 = 随机抽）';
+      }
+    }
+    // Action row: each button picks the persona either from current selection
+    // or from a special directive ("random" always nulls it out)
+    document.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => triggerAction(btn.dataset.action));
+    });
+    // 每个 batch 默认绑定的 scene — 点了 batch 按钮就走 scene_fetch.js
+    // 路径（搜 NCM 歌单 → 随机挑一个未用过的 → 下歌）而不是 AI 凭空选歌
+    // 路径。"manual" 按钮保留为 AI 自由生成（不绑 scene）。
+    const BATCH_TO_SCENE = {
+      morning: 'morning',  // 早安 → 搜"早起/早安"歌单
+      evening: 'night',    // 晚安 → 搜"深度睡眠/哄睡"歌单
+      manual:  null,       // 立即 → 保持原 AI 路径（不绑 scene）
+    };
+
+    // Scene 按钮（主面板 4 个）→ 直接选 batch，根据 scene 名称映射
+    // 早安=morning/scene:morning, 游戏=manual/scene:play, 运动=manual/scene:sport,
+    // 晚安=evening/scene:night. 注意：play/sport 不属于"早安/晚安" batch
+    // 体系 → 用 manual batch 兜底。worker 看到 scene 后走 scene_fetch.js，
+    // batch 仅作为 persona / 提示用。
+    const SCENE_TO_BATCH = {
+      morning: 'morning',
+      play:    'manual',   // play/sport 不是固定 batch，用 manual 兜底
+      sport:   'manual',
+      night:   'evening',
+    };
+    const SCENE_LABELS = {
+      morning: '🌅 早安',
+      play:    '🎮 游戏',
+      sport:   '⚽ 运动',
+      night:   '🌙 晚安',
+    };
+
+    // 主面板：4 个场景按钮（data-scene）— 一键搜歌单
+    document.querySelectorAll('[data-scene]').forEach(btn => {
+      btn.addEventListener('click', () => triggerScene(btn.dataset.scene));
+    });
+
+    async function triggerScene(sceneName) {
+      const batch = SCENE_TO_BATCH[sceneName] || 'manual';
+      // 主面板场景按钮不绑 persona — 川川场景只需要歌单 + 单 persona
+      //（generate_playlist 收到 persona="" 会随机抽）。
+      try {
+        const res = await api('/api/dj/trigger', {
+          method: 'POST',
+          body: JSON.stringify({ batch, persona: null, scene: sceneName }),
+        });
+        toast(`已触发: ${SCENE_LABELS[sceneName] || sceneName} · 搜歌单中...`);
+        refresh();
+      } catch (e) {
+        toast(`触发失败: ${e.message}`, true);
+      }
+    }
+
+    async function triggerAction(action) {
+      let batch, persona, scene;
+      if (action === 'random') {
+        // Random host: pick a batch from current state (or default morning)
+        const now = new Date();
+        const h = parseInt(new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai', hour: '2-digit', hour12: false
+        }).format(now));
+        batch = (h >= 18 || h < 6) ? 'evening' : 'morning';
+        persona = null;  // explicit random
+        scene = BATCH_TO_SCENE[batch];  // 跟 batch 按钮走同样路径
+      } else {
+        batch = action;
+        // Use currently-selected persona if any; otherwise generate_playlist picks
+        persona = selectedPersona;
+        scene = BATCH_TO_SCENE[batch] || null;
+      }
+      await trigger(batch, persona, scene);
+    }
+
+    async function trigger(batch, persona, scene = null) {
+      try {
+        const res = await api('/api/dj/trigger', {
+          method: 'POST',
+          body: JSON.stringify({ batch, persona, scene }),
+        });
+        const personaNote = persona ? ` (${persona})` : ' (随机)';
+        const sceneNote = scene ? ` · 场景: ${scene}` : '';
+        toast(`已触发: ${BATCH_LABELS[batch] || batch}${personaNote}${sceneNote}`);
+        refresh();
+      } catch (e) {
+        toast(`触发失败: ${e.message}`, true);
+      }
+    }
+
+    // ---- Status / progress ----
+    async function refresh() {
+      try {
+        const status = await api('/api/dj/status');
+        lastStatus = status;
+        renderStatus(status);
+      } catch (e) {
+        console.error('refresh failed:', e);
+      }
+    }
+
+    function renderStatus(status) {
+      const { state, batch, persona, started_at, progress, result, history } = status;
+      // 运行历史（最近 N 次 trigger，含搜索详情 + LLM 详情）
+      renderLlmHistory();
+
+      // State badge
+      const badge = $('state-badge');
+      badge.textContent = state.toUpperCase();
+      badge.className = 'state-badge state-' + state + (state === 'running' ? ' pulse' : '');
+      $('batch-label').textContent = batch ? `${BATCH_LABELS[batch] || batch}` : '';
+      $('persona-label').textContent = persona
+        ? `· ${PERSONA_ICONS[persona] || '🎙️'} ${persona}`
+        : (state === 'running' ? '· 🎲 随机' : '');
+      $('cancel-btn').disabled = !(state === 'running' || state === 'cancelling');
+
+      // Phase steps — five stages from trigger to playback
+      const PHASE_LABELS = {
+        selecting:    { label: '准备', icon: '⚙️' },
+        searching:    { label: '搜歌单', icon: '🔎' },
+        downloading:  { label: '下载', icon: '⬇️' },
+        stitching:    { label: '拼接', icon: '🎛️' },
+        done:         { label: '完成', icon: '✅' },
+      };
+      const isRunning = (state === 'running' || state === 'cancelling');
+      const phaseSteps = $('phase-steps');
+      const phaseList = $('phase-list');
+      if (isRunning && progress) {
+        phaseSteps.style.display = 'block';
+        const currentPhase = progress.phase || 'selecting';
+        const phases = ['selecting', 'searching', 'downloading', 'stitching', 'done'];
+        const curIdx = phases.indexOf(currentPhase);
+        phaseList.innerHTML = phases.map((p, i) => {
+          const info = PHASE_LABELS[p] || { label: p, icon: '⚙️' };
+          let statusIcon, cls;
+          if (curIdx < 0 || i < curIdx) { statusIcon = '✅'; cls = 'phase-done'; }
+          else if (i === curIdx) { statusIcon = '⏳'; cls = 'phase-active'; }
+          else { statusIcon = '○'; cls = 'phase-pending'; }
+          let extra = '';
+          // downloading 阶段显示 (current/total) 进度
+          if (p === 'downloading' && i === curIdx && progress.current) {
+            extra = ` <span class="meta">(${progress.current}/${progress.total})</span>`;
+          }
+          // stitching 阶段显示 (current/total) + 当前歌名 + intro 文案
+          if (p === 'stitching' && i === curIdx) {
+            const sub = progress.sub_phase || '';
+            const subLabel = sub === 'llm_batch' ? 'LLM 批量生成 intro'
+                            : sub === 'tts_transcode' ? 'TTS + 转码 + 拼接'
+                            : sub === 'stitched' ? '拼接完成' : '处理';
+            const intro = progress.intro_text ? `: 「${progress.intro_text}」` : '';
+            const sz = progress.last_size_kb ? ` · ${progress.last_size_kb}KB` : '';
+            extra = ` <span class="meta">(${progress.current}/${progress.total}) ${subLabel}: ${progress.current_song || ''}${intro}${sz}</span>`;
+          }
+          return `<div class="${cls}" style="display:flex;align-items:center;gap:8px;font-size:13px;padding:2px 0;">
+            <span style="width:20px;text-align:center;">${statusIcon === '⏳' ? '<span class="pulse" style="display:inline-block;">⏳</span>' : statusIcon}</span>
+            <span>${info.icon} ${info.label}${extra}</span>
+          </div>`;
+        }).join('');
+      } else {
+        phaseSteps.style.display = 'none';
+      }
+
+      // Progress bar
+      const progContainer = $('progress-container');
+      if (progress && isRunning) {
+        progContainer.style.display = 'block';
+        const total = progress.total || 10;
+        const current = progress.current || 0;
+        const succeeded = progress.succeeded || 0;
+        const failed = progress.failed || 0;
+        // 拼接阶段用 stitched 比例；其他阶段用 current/total
+        const phase = progress.phase || '';
+        const pct = Math.min(100, Math.round((current / total) * 100));
+        $('progress-fill').style.width = pct + '%';
+
+        let detail = '';
+        if (phase === 'selecting') detail = `⚙️ 准备中...`;
+        else if (phase === 'searching') detail = `🔎 搜 ${progress.candidates?.length || 0} 个候选...`;
+        else if (phase === 'downloading') detail = `⬇️ [${current}/${total}] 下载 ${progress.current_song || ''}`;
+        else if (phase === 'stitching') {
+          const sub = progress.sub_phase || '';
+          if (sub === 'llm_batch') {
+            detail = `🤖 [LLM 批量] 生成 ${songs.length} 首 intro 中…（约 10-15s）`;
+          } else {
+            const subVerb = sub === 'tts_transcode' ? 'TTS+转码+拼接' : sub === 'stitched' ? '已完成' : '处理';
+            const intro = progress.intro_text ? ` 「${progress.intro_text}」` : '';
+            const sz = progress.last_size_kb ? ` (${progress.last_size_kb}KB)` : '';
+            detail = `🎛️ [${current}/${total}] ${subVerb}: ${progress.current_song || ''}${intro}${sz}`;
+          }
+        }
+        else if (phase === 'done') detail = `✅ 完成！${succeeded} 首成功，${failed} 首失败`;
+        else detail = `${progress.current_song || ''} (${phase})`;
+        $('progress-detail').textContent = detail;
+
+        let stats = `已成功 ${succeeded} 首`;
+        if (failed) stats += ` · ❌ 失败 ${failed} 首`;
+        if (current > 0 && total > 0) stats += ` · 进度 ${Math.round(pct)}%`;
+        $('progress-stats').textContent = stats;
+
+        if (started_at && current > 0 && total > current) {
+          const elapsed = (Date.now() - new Date(started_at).getTime()) / 1000;
+          const perSong = elapsed / current;
+          const remaining = Math.max(0, Math.round((total - current) * perSong));
+          $('eta-text').textContent = `剩余 ~${fmtDuration(remaining)}`;
+        } else {
+          $('eta-text').textContent = '';
+        }
+      } else {
+        progContainer.style.display = 'none';
+      }
+
+      // Selected songs preview
+      const selSongsCard = $('selected-songs-card');
+      const selSongsList = $('selected-songs-list');
+      if (progress && progress.selected_songs && progress.selected_songs.length > 0) {
+        selSongsCard.style.display = 'block';
+        $('selected-count').textContent = progress.selected_songs.length;
+        selSongsList.innerHTML = progress.selected_songs.map(s =>
+          `<span style="background:var(--surface2);padding:3px 8px;border-radius:4px;">${s}</span>`
+        ).join('');
+      } else {
+        selSongsCard.style.display = 'none';
+      }
+
+      // History (only if legacy #history-list element exists; newer UI uses
+      // #llm-history-list under run-history-card)
+      const hList = document.getElementById('history-list');
+      if (hList) {
+      if (!history || history.length === 0) {
+        hList.innerHTML = '<div class="meta">暂无历史</div>';
+      } else {
+        hList.innerHTML = history.map(h => {
+          const personaId = h.persona || 'random';
+          const icon = PERSONA_ICONS[personaId] || '🎙️';
+          return `
+          <div class="history-item">
+            <div class="avatar" data-persona="${personaId}" title="${h.persona || '随机'}">${icon}</div>
+            <span class="batch-label">${BATCH_LABELS[h.batch] || h.batch || '?'}</span>
+            <span class="persona-name">${h.persona || '随机'}</span>
+            <span class="time">${fmtRelative(h.started_at)}</span>
+            <span class="meta">${h.succeeded || 0}/${(h.succeeded || 0) + (h.failed || 0)} 成功</span>
+            <span class="meta">${fmtDuration(h.duration_sec)}</span>
+          </div>
+        `;
+        }).join('');
+      }
+      } // end if (hList)
+    } // end renderStatus
+
+    /**
+     * 渲染场景搜索详情：关键词 + 候选歌单 + 随机选中的歌单 + 歌曲列表
+     * 只在 batch='scene-fetch' 且有 progress 时显示。progress 里
+     * scene_fetch.js 已经塞了 keywords / candidates / chosen_playlist /
+     * songs（见 scripts/scene_fetch.js 的 reportProgress 调用）。
+     */
+        /**
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function cancel() {
+      if (!confirm('确定要取消当前任务吗？')) return;
+      try {
+        await api('/api/dj/cancel', { method: 'POST' });
+        toast('取消信号已发送');
+        refresh();
+      } catch (e) {
+        toast(`取消失败: ${e.message}`, true);
+      }
+    }
+    $('cancel-btn').addEventListener('click', cancel);
+
+    // ---- Netease search ----
+    let neteaseDebounce = null;
+    async function searchNetease() {
+      const q = $('netease-q').value.trim();
+      if (!q) {
+        $('netease-results').innerHTML =
+          '<div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索</div>';
+        return;
+      }
+      $('netease-results').innerHTML = '<div class="meta" style="padding:12px;">搜索中...</div>';
+      try {
+        const j = await api(`/api/netease/search?q=${encodeURIComponent(q)}&limit=8`);
+        const songs = j?.result?.songs || [];
+        if (songs.length === 0) {
+          $('netease-results').innerHTML = '<div class="meta" style="padding:16px;text-align:center;">没有结果</div>';
+          return;
+        }
+        $('netease-results').innerHTML = songs.map(s => {
+          const isVip = s.fee === 1;
+          const artist = (s.artists || []).map(a => a.name).join('/');
+          const dur = Math.round((s.duration || 0) / 1000);
+          return `
+            <div class="netease-hit ${isVip ? 'vip' : ''}">
+              <div>
+                <div class="name">${escapeHtml(s.name)} ${isVip ? '<span class="vip-badge">VIP</span>' : ''}</div>
+                <div class="artist">${escapeHtml(artist)}</div>
+              </div>
+              <div class="duration">${fmtClock(dur)}</div>
+              <button class="btn" style="font-size:11px;padding:4px 8px;" onclick="fetchNeteaseUrl('${s.id}', '${escapeHtml(s.name).replace(/'/g, "\\'")}')">▶ 试听</button>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        $('netease-results').innerHTML =
+          `<div class="meta" style="color:var(--err);padding:12px;">搜索失败: ${e.message}</div>`;
+      }
+    }
+    async function fetchNeteaseUrl(id, name) {
+      try {
+        const j = await api(`/api/netease/play/${id}`);
+        const item = j?.data?.[0];
+        if (!item?.url) {
+          toast(`「${name}」需要 VIP，无法试听`, true);
+          return;
+        }
+        window.open(item.url, '_blank');
+      } catch (e) {
+        toast(`拿 URL 失败: ${e.message}`, true);
+      }
+    }
+    $('netease-search-btn').addEventListener('click', searchNetease);
+    $('netease-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchNetease(); });
+    $('netease-q').addEventListener('input', () => {
+      clearTimeout(neteaseDebounce);
+      neteaseDebounce = setTimeout(() => {
+        if ($('netease-q').value.trim().length >= 2) searchNetease();
+      }, 400);
+    });
+
+    /**
+     * Read the persistent llm_history.jsonl (which build_playlist.js
+     * appends to after every batch intros call) and render the last
+     * N entries. Each entry folds up to a single line; expanding it
+     * reveals:
+     *   - scene-fetch context (keywords, NCM candidates, chosen
+     *     playlist + songs)
+     *   - LLM call (system / user / response / HTTP request body /
+     *     parsed intros)
+     *
+     * The refresh timer calls this every ~3s, which means the entire
+     * list is rebuilt from scratch each time. Without preserving the
+     * user's open/close state across rebuilds, every toggle would
+     * spring back to closed when the next refresh fires. We persist
+     * the open-set to localStorage keyed by entry timestamp.
+     */
+    async function renderLlmHistory() {
+      const card = $('run-history-card');
+      const list = $('llm-history-list');
+      try {
+        const r = await fetch('/api/dj/llm-history?limit=15', { cache: 'no-store' });
+        const d = await r.json();
+        const entries = d.entries || [];
+        if (entries.length === 0) {
+          card.style.display = 'none';
+          return;
+        }
+        card.style.display = 'block';
+        const rhc = document.getElementById('run-history-count');
+        if (rhc) rhc.textContent = `(最近 ${entries.length} 次)`;
+        // Read which entries the user has expanded — survives
+        // refreshStatus() calls every few seconds.
+        let openSet = new Set();
+        try { openSet = new Set(JSON.parse(localStorage.getItem('llm-history-open') || '[]')); } catch {}
+
+        list.innerHTML = entries.map((e) => {
+          const dur = e.duration_ms ? `${(e.duration_ms / 1000).toFixed(1)}s` : '?';
+          // e.ts 是 Node 端 new Date().toISOString() 写入的 UTC 时间，
+          // 以前这里只是把字符串里的 T/Z 去掉再 slice 5..19，输出的是 UTC 字面量
+          // （比如 09:51 显示成 09:51 但其实是 UTC = 北京 17:51）。改用 shanghaiParts
+          // 显式按 Asia/Shanghai 渲染。
+          const _p = e.ts ? shanghaiParts(e.ts) : null;
+          const ts = _p ? `${_p.ymd.slice(5)} ${_p.hh}:${_p.mm}:${_p.ss}` : '';
+          const isOpen = openSet.has(e.ts) ? ' open' : '';
+
+          // ---- 搜索详情：关键词 / 候选 / 选中 / 歌曲 ----
+          const keywordsBlock = (e.keywords && e.keywords.length)
+            ? `<div style="margin-bottom:6px;">
+                 <div class="meta" style="margin-bottom:4px;">📝 搜索关键词</div>
+                 <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                   ${e.keywords.map(kw => `<span class="tag">${escapeHtml(kw)}</span>`).join('')}
+                 </div>
+               </div>` : '';
+          const candidatesBlock = (e.candidates && e.candidates.length)
+            ? `<div style="margin-bottom:6px;">
+                 <div class="meta" style="margin-bottom:4px;">📋 候选歌单 <span class="meta">(${e.candidates.length} 个 · ${e.skipped_used || 0} 个听过跳过)</span></div>
+                 <div style="display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto;">
+                   ${e.candidates.map((c, idx) => {
+                     const isChosen = e.chosen_playlist && String(c.id) === String(e.chosen_playlist.id);
+                     const border = isChosen ? 'border:1px solid var(--accent);background:var(--surface2);' : 'border:1px solid var(--border);';
+                     const tag = isChosen ? '<span style="color:var(--accent);font-weight:600;margin-left:6px;">← 选中</span>' : '';
+                     const playK = (c.play_count >= 10000) ? `${(c.play_count/10000).toFixed(1)}万` : c.play_count;
+                     return `<div style="${border}border-radius:3px;padding:4px 6px;font-size:11px;">
+                       <span class="meta">#${idx + 1}</span>
+                       <span style="margin-left:4px;">${escapeHtml(c.name)}</span>
+                       ${tag}
+                       <span class="meta" style="margin-left:6px;">· ${c.track_count}首 · ${playK}播放 · 「${escapeHtml(c.matched_keyword || '?')}」</span>
+                     </div>`;
+                   }).join('')}
+                 </div>
+               </div>` : '';
+          const chosenBlock = e.chosen_playlist
+            ? `<div style="margin-bottom:6px;">
+                 <div class="meta" style="margin-bottom:4px;">🎲 选中歌单</div>
+                 <div style="background:var(--surface2);border:1px solid var(--accent);border-radius:4px;padding:6px 8px;font-size:12px;">
+                   <div style="font-weight:600;">${escapeHtml(e.chosen_playlist.name)}</div>
+                   <div class="meta" style="margin-top:2px;">${e.chosen_playlist.track_count}首 · 匹配「${escapeHtml(e.chosen_playlist.matched_keyword || '?')}」${e.chosen_playlist.creator ? ' · by ' + escapeHtml(e.chosen_playlist.creator) : ''}</div>
+                 </div>
+               </div>` : '';
+          const songsBlock = (e.songs && e.songs.length)
+            ? `<div style="margin-bottom:6px;">
+                 <div class="meta" style="margin-bottom:4px;">🎵 下载歌曲 <span class="meta">(${e.songs.length} 首)</span></div>
+                 <div style="display:flex;flex-direction:column;gap:1px;max-height:160px;overflow:auto;font-size:11px;">
+                   ${e.songs.map((s, i) => `<div style="padding:1px 4px;"><span class="meta">${i + 1}.</span> ${escapeHtml(s.name || '')} <span class="meta">— ${escapeHtml(s.artist || '')}</span></div>`).join('')}
+                 </div>
+               </div>` : '';
+
+          // ---- LLM 详情：system / user / response / http ----
+          return `
+            <details data-ts="${escapeHtml(e.ts)}"${isOpen} style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:6px;">
+              <summary style="cursor:pointer;font-size:12px;">
+                <span style="color:var(--text-dim);">[${ts}]</span>
+                <span style="color:var(--accent);margin-left:6px;">${escapeHtml(e.scene || '?')}</span>
+                <span style="margin-left:6px;">${escapeHtml(e.playlist_name || '')}</span>
+                <span style="color:var(--text-dim);margin-left:6px;">${e.succeeded || 0}/${e.requested || 0} 首 intro · ${dur}</span>
+              </summary>
+
+              <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+                <!-- 左列：搜索详情 -->
+                <div>
+                  <div class="meta" style="font-weight:600;margin-bottom:6px;">🔍 搜索详情</div>
+                  ${keywordsBlock}
+                  ${candidatesBlock}
+                  ${chosenBlock}
+                  ${songsBlock}
+                </div>
+                <!-- 右列：LLM 详情 -->
+                <div>
+                  <div class="meta" style="font-weight:600;margin-bottom:6px;">🤖 LLM 详情</div>
+                  <details style="margin-bottom:6px;">
+                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">📤 System Prompt</summary>
+                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.system || '(未保存)')}</pre>
+                  </details>
+                  <details style="margin-bottom:6px;">
+                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">💬 User Prompt（${(e.prompt || '').length} 字）</summary>
+                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.prompt || '')}</pre>
+                  </details>
+                  <details style="margin-bottom:6px;">
+                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">📥 Raw Response</summary>
+                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.response || '')}</pre>
+                  </details>
+                  <details style="margin-bottom:6px;">
+                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">🐛 原始 HTTP 请求</summary>
+                    <pre style="background:var(--bg);border:1px solid var(--warn);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;margin:0;">${escapeHtml(e.http_request || '(未保存 — 旧版 build_playlist 未记录)')}</pre>
+                  </details>
+                </div>
+              </div>
+            </details>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('renderLlmHistory failed:', e);
+      }
+    }
+
+    // Toggle listener (delegated) — update localStorage when user
+    // opens/closes an entry. Must run after each renderLlmHistory()
+    // call but the listener survives innerHTML replacement because
+    // we attach it to the persistent parent list element.
+    document.addEventListener('DOMContentLoaded', () => {
+      const list = $('llm-history-list');
+      if (!list) return;
+      list.addEventListener('toggle', (ev) => {
+        const el = ev.target;
+        if (!el.dataset || !el.dataset.ts) return;
+        let openSet;
+        try { openSet = new Set(JSON.parse(localStorage.getItem('llm-history-open') || '[]')); } catch { openSet = new Set(); }
+        if (el.open) openSet.add(el.dataset.ts);
+        else openSet.delete(el.dataset.ts);
+        localStorage.setItem('llm-history-open', JSON.stringify([...openSet]));
+      }, true);
+    });
+
+    // ---- Vibe editor (folded by default) ----
+    let introPromptsConfig = null;
+    let introPromptsDefaults = null;
+
+    async function loadIntroPrompts() {
+      try {
+        const data = await api('/api/dj/intro-prompts');
+        introPromptsConfig = data.config || {};
+        introPromptsDefaults = data.defaults || data.config || {};
+        $('intro-prompts-status').textContent = data.from_file ? '从 config/intro_prompts.json 读取' : '使用默认（未保存过）';
+        renderIntroPromptsForm();
+      } catch (e) {
+        $('intro-prompts-status').textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    function renderIntroPromptsForm() {
+      if (!introPromptsConfig) return;
+      $('ip-system').value = introPromptsConfig.system_template || '';
+      $('ip-user').value = introPromptsConfig.user_template || '';
+      $('ip-fallback').value = introPromptsConfig.fallback_intro || '';
+      // Scene hints grid moved to #scene-manager (unified card below).
+      // ip-scenes is now a compact badge showing scene count.
+      const sceneCount = Object.keys(introPromptsConfig.scene_hints || {}).length;
+      const countEl = document.getElementById('ip-scene-count');
+      if (countEl) countEl.textContent = (sceneCount > 0) ? sceneCount + ' 个场景' : '';
+    }
+
+    function collectIntroPromptsFromForm() {
+      const out = {
+        system_template: $('ip-system').value,
+        user_template: $('ip-user').value,
+        fallback_intro: $('ip-fallback').value,
+        scene_hints: {},
+      };
+      // Scene hints come from the unified scene-manager.
+      // sceneItems is maintained by loadSceneManager().
+      for (const it of sceneItems) {
+        out.scene_hints[it.id] = { label: it.label, keywords: it.keywords || [] };
+      }
+      return out;
+    }
+
+    function renderIntroPromptsPreview() {
+      const cfg = collectIntroPromptsFromForm();
+      // Render a sample substitution so the operator can see the
+      // final prompt without having to run a real trigger.
+      const sampleScene = Object.keys(cfg.scene_hints)[0] || 'sport';
+      // scene_hints values are now {label, keywords[]} objects; the
+      // sample label is what ${sceneHint} resolves to at LLM time.
+      const sampleHintObj = cfg.scene_hints[sampleScene];
+      const sampleHint = (sampleHintObj && typeof sampleHintObj === 'object')
+        ? sampleHintObj.label
+        : (sampleHintObj || sampleScene);
+      const sampleSongList = `1. 《示例歌名》 - 示例歌手\n2. 《另一首歌》 - 另一个歌手`;
+      // Sample weather lines mirror what formatWeatherLine() produces
+      // in build_playlist_from_result.js. Kept in sync by hand; if you
+      // change the formatter, update these too.
+      const sampleWeatherToday    = '多云转阴，22~28°C';
+      const sampleWeatherTomorrow = '小雨，21~26°C';
+      const sys = cfg.system_template.replace(/\$\{sceneHint\}/g, sampleHint);
+      const usr = cfg.user_template
+        .replace(/\$\{sceneHint\}/g, sampleHint)
+        .replace(/\$\{songs\.length\}/g, '2')
+        .replace(/\$\{songList\}/g, sampleSongList)
+        .replace(/\$\{weatherToday\}/g, sampleWeatherToday)
+        .replace(/\$\{weatherTomorrow\}/g, sampleWeatherTomorrow);
+      $('ip-preview').textContent =
+        '=== SYSTEM ===\n' + sys + '\n\n=== USER ===\n' + usr
+        + '\n\n=== FALLBACK (例) ===\n'
+        + cfg.fallback_intro.replace(/\$\{name\}/g, '示例歌名');
+    }
+
+    async function saveIntroPrompts() {
+      const cfg = collectIntroPromptsFromForm();
+      try {
+        const data = await api('/api/dj/intro-prompts', { method: 'POST', body: cfg });
+        toast('已保存到 config/intro_prompts.json');
+        introPromptsConfig = data.config;
+        $('intro-prompts-status').textContent = '已保存到 config/intro_prompts.json（下次 build 自动生效）';
+      } catch (e) {
+        toast('保存失败: ' + e.message, true);
+      }
+    }
+
+    function resetIntroPrompts() {
+      if (!introPromptsDefaults) return;
+      introPromptsConfig = JSON.parse(JSON.stringify(introPromptsDefaults));
+      renderIntroPromptsForm();
+      renderIntroPromptsPreview();
+      $('intro-prompts-status').textContent = '已恢复默认（未保存）';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadIntroPrompts();
+      $('ip-save').addEventListener('click', saveIntroPrompts);
+      $('ip-reset').addEventListener('click', resetIntroPrompts);
+      $('ip-preview-btn').addEventListener('click', renderIntroPromptsPreview);
+      // Live preview as the user types
+      ['ip-system', 'ip-user', 'ip-fallback'].forEach(id => {
+        $(id).addEventListener('input', () => {
+          // debounce a tiny bit to avoid flicker on every keystroke
+          clearTimeout(window.__ipPreviewTimer);
+          window.__ipPreviewTimer = setTimeout(renderIntroPromptsPreview, 300);
+        });
+      });
+      // (input listener moved to scene-manager, was formerly on ip-scenes)\n      // (listener block removed — preview auto-refreshes via save);
+    });
+
+        // ── Scene manager: unified labels + keywords + cron + run ──
+    const SCENE_ICONS = {
+      morning: '\ud83c\udf05', play: '\ud83c\udfae', sport: '\u26bd', night: '\ud83c\udf19', focus: '\ud83d\udcda', sleep: '\ud83d\ude34',
+      evening: '\ud83c\udf19', game: '\ud83c\udfae',
+    };
+    let sceneItems = [];
+
+    function renderSceneManager() {
+      const list = $('scene-list');
+      if (!sceneItems.length) {
+        list.innerHTML = '<div class="meta" style="padding:20px;text-align:center;">暂无场景。点"+ 添加定时场景"创建一条。</div>';
+        return;
+      }
+      list.innerHTML = sceneItems.map((it, idx) => {
+        const icon = SCENE_ICONS[it.id] || '\ud83d\udccc';
+        const timeVal = (it.hour != null && it.minute != null)
+          ? String(it.hour).padStart(2,'0') + ':' + String(it.minute).padStart(2,'0')
+          : '';
+        const nextRun = it.next_run_beijing ? '  ' + it.next_run_beijing : '';
+        const disabled = it.enabled === false;
+        return '<div class="scene-row' + (disabled ? ' disabled' : '') + '" data-idx="' + idx + '">'
+          + '<div class="col-scene"><div class="scene-icon">' + icon + '</div><div class="scene-name">' + escapeHtml(it.id) + '</div></div>'
+          + '<div class="col-label"><input type="text" data-k="label" value="' + escapeHtml(it.label||'') + '" placeholder="LLM标签" />'
+          + '<div class="label-preview">\u573a\u666f\uff1a<span class="label-hint">' + escapeHtml(it.label||'(\u586b\u5199\u6807\u7b7e)') + '</span></div></div>'
+          + '<div class="col-keywords"><div class="kw-tags" data-idx="' + idx + '">'
+          + (it.keywords||[]).map(function(kw) { return '<span class="kw-tag" data-kw="' + escapeHtml(kw) + '">' + escapeHtml(kw) + '<span class="kw-del" data-action="del-kw" data-kw="' + escapeHtml(kw) + '">\u2715</span></span>'; }).join('')
+          + '<input type="text" class="kw-add" data-action="add-kw" placeholder="+\u6dfb\u52a0\u5173\u952e\u8bcd" />'
+          + '</div></div>'
+          + '<div class="col-schedule">'
+
+          + '<input type="time" data-k="time" value="' + timeVal + '" class="sch-time" title="定时时刻" />'
+
+          + '<label class="sch-toggle" title="启用定时自动执行">'
+
+          + '<input type="checkbox" data-k="enabled" ' + (disabled ? '' : 'checked') + ' />'
+
+          + '</label>'
+
+          + '<div class="sch-vol"><span class="vol-icon">🔊</span><input type="number" data-k="volume" min="1" max="100" value="' + (it.volume||4) + '" class="vol-input" /></div>'
+          + '<span class="sch-next">' + nextRun + '</span></div>'
+          + '<div class="col-run"><button class="btn-run" data-action="run" title="立即执行"> \ud83c\udfc3</button></div>'
+          + '<div class="col-del"><button class="del-btn" data-action="del" title="删除">\u2715</button></div>'
+          + '</div>';
+      }).join('');
+
+      // Wire up
+      list.querySelectorAll('.scene-row').forEach(function(row) {
+        var idx = parseInt(row.dataset.idx, 10);
+        var it = sceneItems[idx];
+        if (!it) return;
+        row.querySelectorAll('[data-k]').forEach(function(el) {
+          el.addEventListener('change', function() {
+            switch (el.dataset.k) {
+              case 'time':
+                var parts = (el.value || ':').split(':');
+                it.hour = parseInt(parts[0], 10);
+                it.minute = parseInt(parts[1], 10);
+                if (isNaN(it.hour)) it.hour = null;
+                if (isNaN(it.minute)) it.minute = null;
+                break;
+              case 'enabled':
+                it.enabled = el.checked;
+                row.classList.toggle('disabled', !el.checked);
+                // If enabling without a time, auto-fill a sensible default.
+                // morning→07:00, evening→21:00, other→12:00. The user can
+                // edit the time field afterwards to fine-tune.
+                if (it.enabled && (it.hour == null || it.minute == null)) {
+                  var defaults = { morning: [7, 0], evening: [21, 0], night: [22, 0], sleep: [23, 30], sport: [18, 0], game: [20, 0], focus: [10, 0] };
+                  var def = defaults[it.id] || [12, 0];
+                  it.hour = def[0]; it.minute = def[1];
+                  // Reflect in the time input so user sees what got set
+                  var timeInput = row.querySelector('input[data-k="time"]');
+                  if (timeInput) {
+                    timeInput.value = String(def[0]).padStart(2,'0') + ':' + String(def[1]).padStart(2,'0');
+                  }
+                }
+                break;
+              case 'label':
+                it.label = el.value;
+                var preview = row.querySelector('.label-preview .label-hint');
+                if (preview) preview.textContent = el.value || '(\u586b\u5199\u6807\u7b7e)';
+                break;
+              case 'volume':
+                var v = parseInt(el.value, 10);
+                if (!isNaN(v) && v >= 1 && v <= 100) it.volume = v;
+                break;
+            }
+          });
+        });
+        // Keywords: tag chip system — add via input, remove via del button
+        var kwTags = row.querySelector('.kw-tags');
+        if (kwTags) {
+          // Add keyword (on Enter or comma)
+          kwTags.querySelector('.kw-add').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              var val = this.value.trim();
+              if (val && it.keywords.indexOf(val) < 0) { it.keywords.push(val); renderSceneManager(); }
+            }
+          });
+          kwTags.querySelector('.kw-add').addEventListener('blur', function() {
+            var val = this.value.trim();
+            if (val && it.keywords.indexOf(val) < 0) { it.keywords.push(val); renderSceneManager(); }
+          });
+          // Remove keyword
+          kwTags.querySelectorAll('[data-action="del-kw"]').forEach(function(delBtn) {
+            delBtn.addEventListener('click', function() {
+              var kw = this.dataset.kw;
+              it.keywords = it.keywords.filter(function(k) { return k !== kw; });
+              renderSceneManager();
+            });
+          });
+        }
+        row.querySelector('[data-action="run"]').addEventListener('click', function() {
+          // Set volume for this scene before triggering
+          var vol = it.volume || 4;
+          fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: vol }) })
+            .catch(function() {});
+          triggerScene(it.scene || it.id);
+        });
+        row.querySelector('[data-action="del"]').addEventListener('click', function() {
+          var it = sceneItems[idx];
+          if (!confirm('\u5220\u9664\u8fd9\u4e2a\u573a\u666f\uff1a' + (it.label || it.id) + '\uff1f')) return;
+          sceneItems.splice(idx, 1);
+          renderSceneManager();
+        });
+      });
+    }
+
+    // ---- Scene manager: load / save / add ----
+    async function loadSceneManager() {
+      try {
+        // Load schedule (cron items) + intro_prompts (label, keywords)
+        const [sched, prompts] = await Promise.all([
+          api('/api/schedule'),
+          api('/api/dj/intro-prompts'),
+        ]);
+
+        // Build sceneItems from schedule items + scene_hints
+        const hints = (prompts.config && prompts.config.scene_hints) || {};
+        const dflt = (prompts.defaults && prompts.defaults.scene_hints) || {};
+        const usedIds = new Set();
+        const merged = (sched.items || []).map(si => {
+          usedIds.add(si.id);
+          const hint = hints[si.id] || dflt[si.id] || (si.scene && (hints[si.scene] || dflt[si.scene])) || {};
+          const label = (typeof hint === 'string') ? hint : (hint.label || si.label || si.id);
+          const keywords = Array.isArray(hint.keywords) ? hint.keywords
+            : (Array.isArray(dflt[si.id]?.keywords) ? dflt[si.id].keywords
+              : (si.scene && Array.isArray(dflt[si.scene]?.keywords)) ? dflt[si.scene].keywords
+              : []);
+          return {
+            ...si,
+            label, keywords,
+            volume: (typeof hint === 'object' && hint != null) ? (hint.volume || 4) : 4,
+            next_run_beijing: si.next_run_beijing || null,
+          };
+        });
+
+        // Add any scenes from scene_hints that aren't already scheduled
+        for (const [k, v] of Object.entries(hints)) {
+          if (usedIds.has(k)) continue;
+          const d = dflt[k] || {};
+          merged.push({
+            id: k,
+            label: (typeof v === 'string') ? v : (v.label || d.label || k),
+            keywords: Array.isArray(v.keywords) ? v.keywords : (Array.isArray(d.keywords) ? d.keywords : []),
+            volume: (typeof v === 'object' && v != null) ? (v.volume || 4) : 4,
+            hour: null, minute: null, enabled: false,
+            batch: ['morning','evening'].includes(k) ? k : 'manual',
+            scene: k,
+            next_run_beijing: null,
+            isNew: true,
+          });
+        }
+
+        sceneItems = merged;
+        renderSceneManager();
+        // Update scene count badge in the intro-prompts card
+        const countEl = document.getElementById('ip-scene-count');
+        if (countEl) countEl.textContent = `${Object.keys(hints).length} 个场景`;
+      } catch (e) {
+        $('scene-list').innerHTML = '<div class="meta" style="color:var(--err);padding:20px;">加载失败: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    async function saveSceneManager() {
+      // Build schedule items: only those with time set
+      const scheduleItems = sceneItems
+        .filter(it => it.hour != null && it.minute != null)
+        .map(it => ({
+          id: it.id,
+          label: it.label,
+          hour: it.hour,
+          minute: it.minute,
+          batch: it.batch || (['morning','evening'].includes(it.id) ? it.id : 'manual'),
+          scene: it.scene || it.id,
+          enabled: it.enabled !== false,
+          volume: (it.volume >= 1 && it.volume <= 100) ? it.volume : 4,
+        }));
+
+      // Build scene_hints for intro_prompts
+      const scene_hints = {};
+      for (const it of sceneItems) {
+        scene_hints[it.id] = { label: it.label, keywords: it.keywords || [], volume: it.volume || 4 };
+      }
+
+      try {
+        // Save both schedule + hints
+        const [r1] = await Promise.all([
+          api('/api/schedule', { method: 'POST', body: JSON.stringify({ items: scheduleItems }) }),
+          // Also save scene_hints back to intro_prompts if it wasn't a default-only scene
+          (() => {
+            // Read current prompts config, merge in our scene_hints, save
+            return api('/api/dj/intro-prompts', { method: 'GET' }).then(prompts => {
+              const cfg = prompts.config || {};
+              const mergedHints = { ...(cfg.scene_hints || {}), ...scene_hints };
+              return api('/api/dj/intro-prompts', { method: 'POST', body: JSON.stringify({ ...cfg, scene_hints: mergedHints }) });
+            });
+          })(),
+        ]);
+        if (r1.ok) {
+          const count = scheduleItems.length;
+          const extraCount = sceneItems.length - scheduleItems.length;
+          toast(`✓ 已保存: ${count} 定时 + ${extraCount} 仅配置`);
+          $('scene-saved-ts').textContent = new Date().toLocaleString('zh-CN');
+          await loadSceneManager();
+        } else {
+          toast('保存失败: ' + (r1.error || '未知'), true);
+        }
+      } catch (e) {
+        toast('保存失败: ' + e.message, true);
+      }
+    }
+
+    $('scene-add-schedule').addEventListener('click', () => {
+      sceneItems.push({
+        id: 'scene-' + Date.now().toString(36),
+        label: '新场景',
+        keywords: [],
+        hour: 12, minute: 0,
+        batch: 'manual', scene: null,
+        enabled: true,
+        next_run_beijing: null,
+      });
+      renderSceneManager();
+    });
+    $('scene-save').addEventListener('click', saveSceneManager);
+    $('scene-defaults').addEventListener('click', async () => {
+      // Reset to default scene hints
+      try {
+        await api('/api/dj/intro-prompts', { method: 'POST', body: JSON.stringify({
+          system_template: null, user_template: null, fallback_intro: null,
+          scene_hints: Object.fromEntries(
+            Object.entries(SCENE_DEFAULTS).map(([k, v]) => [k, { label: v.label, keywords: v.keywords }])
+          ),
+        })});
+        toast('已恢复默认场景标签');
+        await loadSceneManager();
+      } catch (e) {
+        toast('恢复失败: ' + e.message, true);
+      }
+    });
+    loadSceneManager();
+
+
+    // ---- Init ----
+    loadPersonas();
+    refresh();
+    setInterval(refresh, 1500);
+  </script>
+</body>
+</html>

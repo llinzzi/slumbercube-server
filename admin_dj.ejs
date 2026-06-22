@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>92DJ · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --accent-dim: #16a34a;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --info: #3b82f6;
+      --running: #22c55e;
+      --persona-mom: #ec4899;
+      --persona-dad: #3b82f6;
+      --persona-deer: #f59e0b;
+      --persona-grandpa: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+    .back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+    .back:hover { color: var(--accent); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 14px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .grow { flex: 1; }
+
+    /* State badge */
+    .state-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .state-idle { background: var(--surface2); color: var(--text-dim); }
+    .state-running { background: rgba(34,197,94,0.15); color: var(--running); }
+    .state-cancelling { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .state-done { background: rgba(59,130,246,0.15); color: var(--info); }
+    .state-failed { background: rgba(239,68,68,0.15); color: var(--err); }
+    .state-cancelled { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Progress */
+    .progress-bar { width: 100%; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); transition: width 0.4s ease; }
+    .progress-text { font-size: 12px; color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; }
+    .meta { font-size: 12px; color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; }
+    .meta strong { color: var(--text); font-weight: 500; }
+    .phase-done { color: var(--text-dim); }
+    .phase-active { color: var(--accent); font-weight: 500; }
+    .phase-pending { color: var(--text-dim); opacity: 0.5; }
+
+    /* Buttons */
+    .btn {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; font-size: 13px;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .btn:hover:not(:disabled) { background: var(--border); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent); }
+    .btn-danger { border-color: var(--err); color: var(--err); }
+    .btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.15); }
+    .btn-ghost { background: transparent; }
+
+    /* ============================================ */
+    /* PERSONA GRID  (核心面板)                     */
+    /* ============================================ */
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 720px) {
+      .persona-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .persona-card {
+      background: var(--surface2);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 16px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      position: relative;
+    }
+    .persona-card:hover { transform: translateY(-2px); }
+    .persona-card.selected { border-color: var(--accent); background: rgba(34,197,94,0.08); }
+    .persona-card.disabled { opacity: 0.4; cursor: not-allowed; }
+    .persona-avatar {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      margin: 0 auto 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      color: #fff;
+    }
+    .persona-card[data-persona="mom"] .persona-avatar { background: var(--persona-mom); }
+    .persona-card[data-persona="dad"] .persona-avatar { background: var(--persona-dad); }
+    .persona-card[data-persona="deer_sister"] .persona-avatar { background: var(--persona-deer); }
+    .persona-card[data-persona="grandpa"] .persona-avatar { background: var(--persona-grandpa); }
+    .persona-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .persona-style { font-size: 11px; color: var(--text-dim); }
+    .persona-batch-tag {
+      position: absolute; top: 6px; right: 6px;
+      font-size: 9px; padding: 2px 6px;
+      background: var(--border); border-radius: 3px;
+      color: var(--text-dim);
+    }
+
+    .action-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .action-row .btn { flex: 1; min-width: 120px; }
+
+    /* Result / last playlist */
+    .last-playlist {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 720px) {
+      .last-playlist { grid-template-columns: 1fr; }
+    }
+    .last-playlist .meta-line {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 8px; font-size: 12px;
+    }
+    .last-playlist .meta-line .chip {
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .songs-list { max-height: 400px; overflow-y: auto; }
+    .song-item {
+      display: grid;
+      grid-template-columns: 30px 1fr 80px;
+      gap: 8px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .song-item:last-child { border-bottom: none; }
+    .song-item .idx { color: var(--text-dim); }
+    .song-item .intro { color: var(--text-dim); font-size: 11px; }
+    .song-item .play-btn {
+      color: var(--accent); text-decoration: none; font-size: 11px;
+      text-align: center;
+    }
+    .song-item .play-btn:hover { text-decoration: underline; }
+
+    /* Netease search */
+    .netease-search { display: flex; gap: 8px; margin-bottom: 12px; }
+    .netease-search input {
+      flex: 1; background: var(--surface2);
+      border: 1px solid var(--border); color: var(--text);
+      border-radius: 4px; padding: 8px 12px; font-size: 13px;
+      font-family: inherit;
+    }
+    .netease-search input:focus { outline: none; border-color: var(--accent); }
+    .netease-results { display: flex; flex-direction: column; gap: 4px; }
+    .netease-hit {
+      display: grid;
+      grid-template-columns: 1fr 100px 80px;
+      gap: 8px; align-items: center;
+      padding: 8px 10px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .netease-hit .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .netease-hit .artist { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .netease-hit .duration { color: var(--text-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+    .netease-hit.vip { opacity: 0.5; }
+    .netease-hit .vip-badge { color: var(--warn); font-size: 10px; }
+
+    /* History */
+    .history-list { display: flex; flex-direction: column; gap: 6px; }
+    .history-item {
+      display: grid;
+      grid-template-columns: 36px 1fr 80px 60px 100px 60px;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 12px;
+      align-items: center;
+    }
+    .history-item .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff;
+    }
+    .history-item .avatar[data-persona="mom"] { background: var(--persona-mom); }
+    .history-item .avatar[data-persona="dad"] { background: var(--persona-dad); }
+    .history-item .avatar[data-persona="deer_sister"] { background: var(--persona-deer); }
+    .history-item .avatar[data-persona="grandpa"] { background: var(--persona-grandpa); }
+    .history-item .avatar[data-persona="random"] { background: var(--border); }
+    .history-item .time { color: var(--text-dim); font-family: 'SF Mono', monospace; }
+    .history-item .batch-label { font-weight: 500; }
+    .history-item .persona-name { color: var(--text-dim); font-size: 11px; }
+
+    /* Log */
+    .log {
+      background: #0a0c10; border: 1px solid var(--border);
+      border-radius: 4px; padding: 12px;
+      max-height: 240px; overflow-y: auto;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px; color: var(--text-dim);
+      line-height: 1.5; white-space: pre-wrap;
+    }
+
+    /* Vibe editor (collapsed by default) */
+    details.editor summary {
+      cursor: pointer; padding: 8px 0;
+      font-weight: 600; font-size: 13px;
+      color: var(--text-dim);
+    }
+    details.editor summary:hover { color: var(--accent); }
+    details.editor[open] summary { color: var(--accent); }
+    .vibe-editor details.persona-config { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    .vibe-editor details.persona-config:last-child { border-bottom: none; }
+    .vibe-editor label { display: block; font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
+    .vibe-editor textarea {
+      width: 100%; min-height: 60px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text);
+      padding: 8px; font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px; line-height: 1.5; resize: vertical;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--accent);
+      border-radius: 4px; padding: 12px 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0; transform: translateY(20px);
+      transition: all 0.25s; z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: var(--err); }
+  </style>
+</head>
+<body>
+  <a href="/" class="back">← 返回电台首页</a>
+  <h1 style="margin-top: 8px;">🎧 92DJ</h1>
+  <div class="subtitle">192电台 的多主持人播报控制台</div>
+
+  <!-- ====== 1. 当前状态 ====== -->
+  <div class="card">
+    <h2>📡 当前状态</h2>
+    <div class="row">
+      <span id="state-badge" class="state-badge state-idle">IDLE</span>
+      <span id="batch-label" class="meta"></span>
+      <span id="persona-label" class="meta"></span>
+      <span class="grow"></span>
+      <button id="cancel-btn" class="btn btn-danger" disabled>取消任务</button>
+    </div>
+
+    <div id="phase-steps" style="display:none; margin-top:16px;">
+      <div id="phase-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div id="progress-container" style="display: none; margin-top: 12px;">
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <span id="progress-detail" class="progress-text"></span>
+        <span class="grow"></span>
+        <span id="eta-text" class="progress-text"></span>
+      </div>
+      <div class="row" style="margin-top:4px;">
+        <span id="progress-stats" class="meta" style="font-size:11px;"></span>
+      </div>
+    </div>
+
+    <div id="selected-songs-card" style="display:none; margin-top:12px;">
+      <div class="meta" style="margin-bottom:6px;">🎯 已选歌曲 <span id="selected-count">0</span> 首</div>
+      <div id="selected-songs-list" style="font-size:12px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+    </div>
+  </div>
+
+  <!-- ====== 2. 场景 (核心) ====== -->
+  <!-- 点了直接走 scene_fetch.js：搜 NCM 歌单 → 随机挑一个没用过的 → 下歌 -->
+  <div class="card">
+    <h2>🎯 场景 · 跑任务</h2>
+    <div class="action-row">
+      <button class="btn btn-primary" data-scene="morning">🌅 早安</button>
+      <button class="btn btn-primary" data-scene="play">🎮 游戏</button>
+      <button class="btn btn-primary" data-scene="sport">⚽ 运动</button>
+      <button class="btn btn-primary" data-scene="night">🌙 晚安</button>
+    </div>
+    <div class="meta" style="margin-top: 12px;">
+      <span>点场景按钮 → 去 NCM 搜对应歌单 → 随机挑一个川川没听过的 → 下歌。已听过的歌单自动跳过。</span>
+    </div>
+  </div>
+
+  <!-- ====== 3. 最近一次 playlist ====== -->
+  <div class="card" id="result-card" style="display: none;">
+    <h2>🎵 最近一次 Playlist</h2>
+    <div class="last-playlist">
+      <div>
+        <div class="meta-line" id="result-meta-line"></div>
+        <div class="meta" id="result-meta-detail"></div>
+      </div>
+      <div>
+        <div id="songs-list" class="songs-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 4. 网易云搜歌 ====== -->
+  <div class="card">
+    <h2>🔍 网易云搜歌</h2>
+    <div class="netease-search">
+      <input id="netease-q" placeholder="输入歌名 / 歌手，回车搜索..." />
+      <button class="btn" id="netease-search-btn">搜索</button>
+    </div>
+    <div id="netease-results" class="netease-results">
+      <div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索（数据走本地 sidecar 代理）</div>
+    </div>
+  </div>
+
+  <!-- ====== 5. 历史 ====== -->
+  <div class="card">
+    <h2>📜 历史记录（最近 20 条）</h2>
+    <div class="history-list" id="history-list">
+      <div class="meta">加载中...</div>
+    </div>
+  </div>
+
+  <!-- ====== 6. 日志 (折叠) ====== -->
+  <div class="card">
+    <details class="editor" id="log-card">
+      <summary>🪵 Worker 日志（最后 50 行）</summary>
+      <div class="log" id="log">加载中...</div>
+    </details>
+  </div>
+
+  <!-- ====== 7. 高级: Vibe 配置 (折叠) ====== -->
+  <div class="card">
+    <details class="editor" id="vibe-card">
+      <summary>⚙️ 高级 · 主持人 prompt 配置</summary>
+      <p class="meta" style="margin: 12px 0;">
+        修改 prompt 后下次 playlist 生成生效。变量：<code>{timeOfDay}</code> <code>{hour}</code> <code>{location}</code> <code>{weather}</code> <code>{count}</code> <code>{song_name}</code>
+      </p>
+      <div class="vibe-editor" id="vibe-editor">
+        <div id="vibe-fields"></div>
+        <button class="btn btn-primary" id="vibe-save-btn" disabled style="margin-top: 12px;">保存配置</button>
+      </div>
+    </details>
+  </div>
+
+  <!-- ====== 8. 高级: 自由生成 (折叠) ====== -->
+  <!-- 默认隐藏：legacy AI 路径（persona + 自由 AI 选歌）。打开后： -->
+  <!--   - 选一个 persona（妈妈/爸爸/鹿姐姐/爷爷），会传到 generate_playlist.js -->
+  <!--   - 立即 / 随机主持人 按钮走原 AI 路径，不绑 scene（搜 NCM 单曲） -->
+  <div class="card">
+    <details class="editor" id="legacy-card">
+      <summary>🧪 高级 · 自由生成（不推荐）</summary>
+      <p class="meta" style="margin: 12px 0;">
+        不用场景搜歌单，直接让 AI 自由选歌。大部分情况场景按钮够用，需要试新 prompt 或 persona 时再开。
+      </p>
+      <div class="persona-grid" id="persona-grid">
+        <div class="meta" style="grid-column: 1 / -1; padding:24px; text-align:center;">加载中...</div>
+      </div>
+      <div class="action-row">
+        <button class="btn" data-action="manual" data-persona="auto">⚡ 立即</button>
+        <button class="btn btn-ghost" data-action="random" data-persona="auto">🎲 随机主持人</button>
+      </div>
+      <div class="meta" style="margin-top: 12px;">
+        <span id="current-selection-hint">提示：点上方任意主持人卡片可锁定/解锁（不选 = 随机抽）</span>
+      </div>
+    </details>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let pollHandle = null;
+    let lastStatus = null;
+    let personas = [];           // loaded from /api/dj/personas
+    let selectedPersona = null;  // null = random; otherwise persona.id
+
+    const PERSONA_ICONS = {
+      mom: '👩',
+      dad: '👨',
+      deer_sister: '🦌',
+      grandpa: '👴',
+      random: '🎲',
+    };
+    const PERSONA_DESCRIPTIONS = {
+      mom: '温柔 · 哄睡 · 讲故事',
+      dad: '活泼 · 玩闹 · 小英雄',
+      deer_sister: 'DJ风 · 节奏 · 蹦跳',
+      grandpa: '老故事 · 慢节奏 · 慢摇扇',
+    };
+    const BATCH_LABELS = {
+      morning: '🌅 早安',
+      evening: '🌙 晚安',
+      manual: '⚡ 立即',
+    };
+
+    function toast(msg, isError = false) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (isError ? ' error' : '');
+      setTimeout(() => el.className = 'toast', 2500);
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const opts = { timeZone: 'Asia/Shanghai', hour12: false };
+      const parts = new Intl.DateTimeFormat('zh-CN', {
+        ...opts, month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(d);
+      const get = (type) => parts.find(p => p.type === type)?.value || '00';
+      return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+    }
+    function fmtRelative(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+      const isYesterday = d.toDateString() === yesterday.toDateString();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (sameDay) return `今天 ${hh}:${mm}`;
+      if (isYesterday) return `昨天 ${hh}:${mm}`;
+      return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
+    }
+    function fmtDuration(sec) {
+      if (sec == null) return '';
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}m${s}s`;
+    }
+    function fmtClock(sec) {
+      if (sec == null) return '';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    // ---- Persona grid ----
+    async function loadPersonas() {
+      try {
+        personas = await api('/api/dj/personas');
+        renderPersonaGrid();
+      } catch (e) {
+        $('persona-grid').innerHTML =
+          `<div class="meta" style="color:var(--err);grid-column:1/-1;padding:24px;text-align:center;">加载主持人失败: ${e.message}</div>`;
+      }
+    }
+    function renderPersonaGrid() {
+      $('persona-grid').innerHTML = personas.map(p => `
+        <div class="persona-card" data-persona="${p.id}" data-batch="${p.batch}" onclick="selectPersona('${p.id}')">
+          <div class="persona-avatar">${PERSONA_ICONS[p.id] || '🎙️'}</div>
+          <div class="persona-name">${p.name}</div>
+          <div class="persona-style">${PERSONA_DESCRIPTIONS[p.id] || p.label}</div>
+          <div class="persona-batch-tag">${BATCH_LABELS[p.batch] || p.batch}</div>
+        </div>
+      `).join('');
+      updatePersonaSelection();
+    }
+    function selectPersona(id) {
+      // Click again to deselect (back to random)
+      if (selectedPersona === id) selectedPersona = null;
+      else selectedPersona = id;
+      updatePersonaSelection();
+    }
+    function updatePersonaSelection() {
+      document.querySelectorAll('.persona-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.persona === selectedPersona);
+      });
+      if (selectedPersona) {
+        const p = personas.find(x => x.id === selectedPersona);
+        $('current-selection-hint').textContent =
+          `已锁定: ${p.name} (${BATCH_LABELS[p.batch] || p.batch}) — 上面任一按钮会带上 TA`;
+      } else {
+        $('current-selection-hint').textContent =
+          '提示：点上方任意主持人卡片可锁定/解锁（不选 = 随机抽）';
+      }
+    }
+    // Action row: each button picks the persona either from current selection
+    // or from a special directive ("random" always nulls it out)
+    document.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => triggerAction(btn.dataset.action));
+    });
+    // 每个 batch 默认绑定的 scene — 点了 batch 按钮就走 scene_fetch.js
+    // 路径（搜 NCM 歌单 → 随机挑一个未用过的 → 下歌）而不是 AI 凭空选歌
+    // 路径。"manual" 按钮保留为 AI 自由生成（不绑 scene）。
+    const BATCH_TO_SCENE = {
+      morning: 'morning',  // 早安 → 搜"早起/早安"歌单
+      evening: 'night',    // 晚安 → 搜"深度睡眠/哄睡"歌单
+      manual:  null,       // 立即 → 保持原 AI 路径（不绑 scene）
+    };
+
+    // Scene 按钮（主面板 4 个）→ 直接选 batch，根据 scene 名称映射
+    // 早安=morning/scene:morning, 游戏=manual/scene:play, 运动=manual/scene:sport,
+    // 晚安=evening/scene:night. 注意：play/sport 不属于"早安/晚安" batch
+    // 体系 → 用 manual batch 兜底。worker 看到 scene 后走 scene_fetch.js，
+    // batch 仅作为 persona / 提示用。
+    const SCENE_TO_BATCH = {
+      morning: 'morning',
+      play:    'manual',   // play/sport 不是固定 batch，用 manual 兜底
+      sport:   'manual',
+      night:   'evening',
+    };
+    const SCENE_LABELS = {
+      morning: '🌅 早安',
+      play:    '🎮 游戏',
+      sport:   '⚽ 运动',
+      night:   '🌙 晚安',
+    };
+
+    // 主面板：4 个场景按钮（data-scene）— 一键搜歌单
+    document.querySelectorAll('[data-scene]').forEach(btn => {
+      btn.addEventListener('click', () => triggerScene(btn.dataset.scene));
+    });
+
+    async function triggerScene(sceneName) {
+      const batch = SCENE_TO_BATCH[sceneName] || 'manual';
+      // 主面板场景按钮不绑 persona — 川川场景只需要歌单 + 单 persona
+      //（generate_playlist 收到 persona="" 会随机抽）。
+      try {
+        const res = await api('/api/dj/trigger', {
+          method: 'POST',
+          body: JSON.stringify({ batch, persona: null, scene: sceneName }),
+        });
+        toast(`已触发: ${SCENE_LABELS[sceneName] || sceneName} · 搜歌单中...`);
+        refresh();
+      } catch (e) {
+        toast(`触发失败: ${e.message}`, true);
+      }
+    }
+
+    async function triggerAction(action) {
+      let batch, persona, scene;
+      if (action === 'random') {
+        // Random host: pick a batch from current state (or default morning)
+        const now = new Date();
+        const h = parseInt(new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai', hour: '2-digit', hour12: false
+        }).format(now));
+        batch = (h >= 18 || h < 6) ? 'evening' : 'morning';
+        persona = null;  // explicit random
+        scene = BATCH_TO_SCENE[batch];  // 跟 batch 按钮走同样路径
+      } else {
+        batch = action;
+        // Use currently-selected persona if any; otherwise generate_playlist picks
+        persona = selectedPersona;
+        scene = BATCH_TO_SCENE[batch] || null;
+      }
+      await trigger(batch, persona, scene);
+    }
+
+    async function trigger(batch, persona, scene = null) {
+      try {
+        const res = await api('/api/dj/trigger', {
+          method: 'POST',
+          body: JSON.stringify({ batch, persona, scene }),
+        });
+        const personaNote = persona ? ` (${persona})` : ' (随机)';
+        const sceneNote = scene ? ` · 场景: ${scene}` : '';
+        toast(`已触发: ${BATCH_LABELS[batch] || batch}${personaNote}${sceneNote}`);
+        refresh();
+      } catch (e) {
+        toast(`触发失败: ${e.message}`, true);
+      }
+    }
+
+    // ---- Status / progress ----
+    async function refresh() {
+      try {
+        const status = await api('/api/dj/status');
+        lastStatus = status;
+        renderStatus(status);
+      } catch (e) {
+        console.error('refresh failed:', e);
+      }
+    }
+
+    function renderStatus(status) {
+      const { state, batch, persona, started_at, progress, result, history } = status;
+
+      // State badge
+      const badge = $('state-badge');
+      badge.textContent = state.toUpperCase();
+      badge.className = 'state-badge state-' + state + (state === 'running' ? ' pulse' : '');
+      $('batch-label').textContent = batch ? `${BATCH_LABELS[batch] || batch}` : '';
+      $('persona-label').textContent = persona
+        ? `· ${PERSONA_ICONS[persona] || '🎙️'} ${persona}`
+        : (state === 'running' ? '· 🎲 随机' : '');
+      $('cancel-btn').disabled = !(state === 'running' || state === 'cancelling');
+
+      // Phase steps
+      const PHASE_LABELS = {
+        selecting:    { label: '准备', icon: '⚙️' },
+        ai_text:      { label: 'AI 选歌', icon: '🤖' },
+        first_intro:  { label: '首首 intro', icon: '✍️' },
+        tts:          { label: 'TTS 音频', icon: '🎙️' },
+        transcoding:  { label: '音频转码', icon: '🔄' },
+        stitching:    { label: '拼接制作', icon: '🔗' },
+        done:         { label: '完成', icon: '✅' },
+        netease:      { label: '网易云搜歌', icon: '🔍' },
+        // scene_fetch.js 用的 phase（搜歌单 / 下歌）
+        searching:    { label: '搜歌单', icon: '🔎' },
+        downloading:  { label: '下歌', icon: '⬇️' },
+      };
+      const isRunning = (state === 'running' || state === 'cancelling');
+      const phaseSteps = $('phase-steps');
+      const phaseList = $('phase-list');
+      if (isRunning && progress) {
+        phaseSteps.style.display = 'block';
+        const currentPhase = progress.phase || 'selecting';
+        // 两套 phase 流：AI 路径（selecting→ai_text→netease→...）和
+        // scene 路径（selecting→searching→downloading→done）。
+        // UI 自动根据 progress.batch 切换。当前 phase 不在列表里时
+        // curIdx === -1，会让所有 step 都"未完成"显示，不影响功能。
+        const isScenePath = (progress.batch === 'scene-fetch');
+        const phases = isScenePath
+          ? ['selecting','searching','downloading','done']
+          : ['selecting','ai_text','netease','first_intro','tts','transcoding','stitching','done'];
+        const curIdx = phases.indexOf(currentPhase);
+        phaseList.innerHTML = phases.map((p, i) => {
+          const info = PHASE_LABELS[p] || { label: p, icon: '⚙️' };
+          let statusIcon, cls;
+          if (curIdx < 0 || i < curIdx) { statusIcon = '✅'; cls = 'phase-done'; }
+          else if (i === curIdx) { statusIcon = '⏳'; cls = 'phase-active'; }
+          else { statusIcon = '○'; cls = 'phase-pending'; }
+          let extra = '';
+          if ((p === 'tts' || p === 'transcoding' || p === 'stitching' || p === 'netease') && i === curIdx && progress.current) {
+            extra = ` <span class="meta">(${progress.current}/${progress.total})</span>`;
+          }
+          return `<div class="${cls}" style="display:flex;align-items:center;gap:8px;font-size:13px;padding:2px 0;">
+            <span style="width:20px;text-align:center;">${statusIcon === '⏳' ? '<span class="pulse" style="display:inline-block;">⏳</span>' : statusIcon}</span>
+            <span>${info.icon} ${info.label}${extra}</span>
+          </div>`;
+        }).join('');
+      } else {
+        phaseSteps.style.display = 'none';
+      }
+
+      // Progress bar
+      const progContainer = $('progress-container');
+      if (progress && isRunning) {
+        progContainer.style.display = 'block';
+        const total = progress.total || 10;
+        const current = progress.current || 0;
+        const succeeded = progress.succeeded || 0;
+        const failed = progress.failed || 0;
+        const pct = Math.min(100, Math.round((current / total) * 100));
+        $('progress-fill').style.width = pct + '%';
+
+        let detail = '';
+        const phase = progress.phase || '';
+        if (phase === 'selecting') detail = `⚙️ 准备中...`;
+        else if (phase === 'searching') detail = `🔎 ${progress.ai_status || '正在搜 NCM 歌单...'}`;
+        else if (phase === 'downloading') detail = `⬇️ [${current}/${total}] 下载 ${progress.current_song || ''}（已用: ${progress.playlist_name || ''}）`;
+        else if (phase === 'ai_text') {
+          const aiStatus = progress.ai_status || 'AI 正在筛选歌曲...';
+          let preview = '';
+          if (progress.ai_raw_preview && progress.ai_raw_preview.length > 0) {
+            preview = ' · AI 初选: ' + progress.ai_raw_preview.join(', ');
+          }
+          detail = `🤖 ${aiStatus}${preview}`;
+        } else if (phase === 'netease') {
+          detail = `🔍 [${current}/${total}] 搜 + 下载 ${progress.current_song || ''}`;
+        } else if (phase === 'first_intro') detail = `✍️ 生成第一首的完整播报词...`;
+        else if (phase === 'tts') detail = `🎙️ [${current}/${total}] TTS ${progress.current_song || ''}`;
+        else if (phase === 'transcoding') detail = `🔄 [${current}/${total}] 转码 ${progress.current_song || ''}`;
+        else if (phase === 'stitching') detail = `🔗 [${current}/${total}] 拼接 ${progress.current_song || ''}`;
+        else if (phase === 'done') detail = `✅ 完成！${succeeded} 首成功，${failed} 首失败`;
+        else detail = `${progress.current_song || ''} (${phase})`;
+        $('progress-detail').textContent = detail;
+
+        let stats = `已成功 ${succeeded} 首`;
+        if (failed) stats += ` · ❌ 失败 ${failed} 首`;
+        if (current > 0 && total > 0) stats += ` · 进度 ${Math.round(pct)}%`;
+        $('progress-stats').textContent = stats;
+
+        if (started_at && current > 0 && total > current) {
+          const elapsed = (Date.now() - new Date(started_at).getTime()) / 1000;
+          const perSong = elapsed / current;
+          const remaining = Math.max(0, Math.round((total - current) * perSong));
+          $('eta-text').textContent = `剩余 ~${fmtDuration(remaining)}`;
+        } else {
+          $('eta-text').textContent = '';
+        }
+      } else {
+        progContainer.style.display = 'none';
+      }
+
+      // Selected songs preview
+      const selSongsCard = $('selected-songs-card');
+      const selSongsList = $('selected-songs-list');
+      if (progress && progress.selected_songs && progress.selected_songs.length > 0) {
+        selSongsCard.style.display = 'block';
+        $('selected-count').textContent = progress.selected_songs.length;
+        selSongsList.innerHTML = progress.selected_songs.map(s =>
+          `<span style="background:var(--surface2);padding:3px 8px;border-radius:4px;">${s}</span>`
+        ).join('');
+      } else {
+        selSongsCard.style.display = 'none';
+      }
+
+      // Result card
+      const resultCard = $('result-card');
+      if (result) {
+        resultCard.style.display = 'block';
+        const personaChip = result.persona
+          ? `<span class="chip" style="background:var(--surface2);">${PERSONA_ICONS[result.persona.id] || '🎙️'} ${result.persona.name}</span>`
+          : `<span class="chip">🎲 随机</span>`;
+        const chips = [
+          personaChip,
+          result.weather ? `<span class="chip">🌤 ${result.weather}</span>` : '',
+          result.song_count != null ? `<span class="chip"><strong>${result.song_count}</strong> 首歌</strong></span>` : '',
+        ].filter(Boolean);
+        $('result-meta-line').innerHTML = chips.join(' ');
+
+        let detail = [];
+        if (result.error) detail.push(`<span style="color:var(--err)">错误: ${result.error}</span>`);
+        if (result.generated_at) detail.push(`生成: ${fmtDate(result.generated_at)}`);
+        if (result.valid_until) detail.push(`有效期: ${fmtDate(result.valid_until)}`);
+        $('result-meta-detail').innerHTML = detail.join(' · ');
+
+        // Songs list — pull from full playlist if available (we cache it in lastStatus)
+        const songs = (lastStatus.result && lastStatus.result.songs) || [];
+        if (songs.length > 0) {
+          $('songs-list').innerHTML = songs.map(s => `
+            <div class="song-item">
+              <div class="idx">#${s.index}</div>
+              <div>
+                <div>${s.name}</div>
+                ${s.intro_text ? `<div class="intro">${s.intro_text.slice(0, 80)}${s.intro_text.length > 80 ? '...' : ''}</div>` : ''}
+              </div>
+              <a class="play-btn" href="${s.stitched_url || s.track_url || '#'}" target="_blank" rel="noopener">▶ 试听</a>
+            </div>
+          `).join('');
+        } else {
+          $('songs-list').innerHTML = '<div class="meta">无歌曲详情</div>';
+        }
+      } else {
+        resultCard.style.display = 'none';
+      }
+
+      // History
+      const hList = $('history-list');
+      if (!history || history.length === 0) {
+        hList.innerHTML = '<div class="meta">暂无历史</div>';
+      } else {
+        hList.innerHTML = history.map(h => {
+          const personaId = h.persona || 'random';
+          const icon = PERSONA_ICONS[personaId] || '🎙️';
+          return `
+          <div class="history-item">
+            <div class="avatar" data-persona="${personaId}" title="${h.persona || '随机'}">${icon}</div>
+            <span class="batch-label">${BATCH_LABELS[h.batch] || h.batch || '?'}</span>
+            <span class="persona-name">${h.persona || '随机'}</span>
+            <span class="time">${fmtRelative(h.started_at)}</span>
+            <span class="meta">${h.succeeded || 0}/${(h.succeeded || 0) + (h.failed || 0)} 成功</span>
+            <span class="meta">${fmtDuration(h.duration_sec)}</span>
+          </div>
+        `;
+        }).join('');
+      }
+    }
+
+    async function refreshLog() {
+      try {
+        const { lines } = await api('/api/dj/log');
+        const logEl = $('log');
+        logEl.textContent = lines.length ? lines.join('\n') : '(empty)';
+        logEl.scrollTop = logEl.scrollHeight;
+      } catch (e) {
+        $('log').textContent = '(failed to load log)';
+      }
+    }
+
+    async function cancel() {
+      if (!confirm('确定要取消当前任务吗？')) return;
+      try {
+        await api('/api/dj/cancel', { method: 'POST' });
+        toast('取消信号已发送');
+        refresh();
+      } catch (e) {
+        toast(`取消失败: ${e.message}`, true);
+      }
+    }
+    $('cancel-btn').addEventListener('click', cancel);
+
+    // ---- Netease search ----
+    let neteaseDebounce = null;
+    async function searchNetease() {
+      const q = $('netease-q').value.trim();
+      if (!q) {
+        $('netease-results').innerHTML =
+          '<div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索</div>';
+        return;
+      }
+      $('netease-results').innerHTML = '<div class="meta" style="padding:12px;">搜索中...</div>';
+      try {
+        const j = await api(`/api/netease/search?q=${encodeURIComponent(q)}&limit=8`);
+        const songs = j?.result?.songs || [];
+        if (songs.length === 0) {
+          $('netease-results').innerHTML = '<div class="meta" style="padding:16px;text-align:center;">没有结果</div>';
+          return;
+        }
+        $('netease-results').innerHTML = songs.map(s => {
+          const isVip = s.fee === 1;
+          const artist = (s.artists || []).map(a => a.name).join('/');
+          const dur = Math.round((s.duration || 0) / 1000);
+          return `
+            <div class="netease-hit ${isVip ? 'vip' : ''}">
+              <div>
+                <div class="name">${escapeHtml(s.name)} ${isVip ? '<span class="vip-badge">VIP</span>' : ''}</div>
+                <div class="artist">${escapeHtml(artist)}</div>
+              </div>
+              <div class="duration">${fmtClock(dur)}</div>
+              <button class="btn" style="font-size:11px;padding:4px 8px;" onclick="fetchNeteaseUrl('${s.id}', '${escapeHtml(s.name).replace(/'/g, "\\'")}')">▶ 试听</button>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        $('netease-results').innerHTML =
+          `<div class="meta" style="color:var(--err);padding:12px;">搜索失败: ${e.message}</div>`;
+      }
+    }
+    async function fetchNeteaseUrl(id, name) {
+      try {
+        const j = await api(`/api/netease/play/${id}`);
+        const item = j?.data?.[0];
+        if (!item?.url) {
+          toast(`「${name}」需要 VIP，无法试听`, true);
+          return;
+        }
+        window.open(item.url, '_blank');
+      } catch (e) {
+        toast(`拿 URL 失败: ${e.message}`, true);
+      }
+    }
+    $('netease-search-btn').addEventListener('click', searchNetease);
+    $('netease-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchNetease(); });
+    $('netease-q').addEventListener('input', () => {
+      clearTimeout(neteaseDebounce);
+      neteaseDebounce = setTimeout(() => {
+        if ($('netease-q').value.trim().length >= 2) searchNetease();
+      }, 400);
+    });
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ---- Vibe editor (folded by default) ----
+    let vibeData = null;
+    const vibeFields = $('vibe-fields');
+    const vibeSaveBtn = $('vibe-save-btn');
+
+    async function loadVibes() {
+      try {
+        const data = await api('/api/dj/vibes');
+        vibeData = data;
+        renderVibes(data);
+      } catch (e) {
+        vibeFields.innerHTML = `<div class="meta" style="color:var(--err);">加载失败: ${e.message}</div>`;
+      }
+    }
+    function renderVibes(data) {
+      vibeFields.innerHTML = Object.keys(data).map(key => {
+        const v = data[key];
+        const personaSection = (v.personas || []).map(p => `
+          <details class="persona-config">
+            <summary>${PERSONA_ICONS[p.id] || '🎙️'} ${p.name} <span class="meta">(${p.id})</span></summary>
+            <label>🎤 system_addon</label>
+            <textarea data-key="${key}" data-field="personas" data-persona="${p.id}" data-sub="system_addon">${p.system_addon || ''}</textarea>
+            <label>🎯 intro_addon</label>
+            <textarea data-key="${key}" data-field="personas" data-persona="${p.id}" data-sub="intro_addon">${p.intro_addon || ''}</textarea>
+          </details>
+        `).join('');
+        return `
+          <details class="persona-config">
+            <summary>📦 ${BATCH_LABELS[key] || key} · ${v.label || ''}</summary>
+            <label>🎤 system prompt</label>
+            <textarea data-key="${key}" data-field="system">${v.system || ''}</textarea>
+            <label>🎯 intro prompt</label>
+            <textarea data-key="${key}" data-field="intro_prompt">${v.intro_prompt || ''}</textarea>
+            <label>👥 personas (4 个主持人)</label>
+            ${personaSection}
+          </details>
+        `;
+      }).join('');
+      document.querySelectorAll('.vibe-editor textarea').forEach(ta => {
+        ta.addEventListener('input', () => { vibeSaveBtn.disabled = false; });
+      });
+      vibeSaveBtn.disabled = true;
+    }
+    vibeSaveBtn.addEventListener('click', async () => {
+      vibeSaveBtn.disabled = true;
+      vibeSaveBtn.textContent = '保存中...';
+      const payload = JSON.parse(JSON.stringify(vibeData));  // deep copy
+      document.querySelectorAll('.vibe-editor textarea').forEach(ta => {
+        const key = ta.dataset.key;
+        const field = ta.dataset.field;
+        if (!payload[key]) return;
+        if (field === 'personas') {
+          const persona = payload[key].personas.find(p => p.id === ta.dataset.persona);
+          if (persona) persona[ta.dataset.sub] = ta.value;
+        } else {
+          payload[key][field] = ta.value;
+        }
+      });
+      try {
+        await api('/api/dj/vibes', { method: 'POST', body: JSON.stringify(payload) });
+        toast('配置已保存，下次 playlist 生成时生效');
+        vibeSaveBtn.textContent = '保存配置';
+      } catch (e) {
+        toast(`保存失败: ${e.message}`, true);
+        vibeSaveBtn.disabled = false;
+        vibeSaveBtn.textContent = '保存配置';
+      }
+    });
+
+    // ---- Init ----
+    loadPersonas();
+    loadVibes();
+    refresh();
+    refreshLog();
+    setInterval(refresh, 1500);
+    setInterval(refreshLog, 3000);
+  </script>
+</body>
+</html>

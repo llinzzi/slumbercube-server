@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史歌单库 · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --accent-dim: #16a34a;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --info: #3b82f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
+    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+    .back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+    .back:hover { color: var(--accent); }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .stats-bar .num { color: var(--accent); font-weight: 600; font-size: 16px; }
+    .stats-bar .dim { color: var(--text-dim); font-size: 12px; }
+
+    /* Scene filter pills */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      padding: 6px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-dim);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-pill:hover { border-color: var(--accent); color: var(--text); }
+    .filter-pill.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* Search box */
+    .search {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 13px;
+      margin-bottom: 16px;
+      font-family: inherit;
+    }
+    .search:focus { outline: none; border-color: var(--accent); }
+
+    /* Playlist card */
+    .playlist-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .playlist-header {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+      align-items: center;
+    }
+    .playlist-header:hover { background: var(--surface2); }
+    .playlist-cover {
+      width: 64px; height: 64px;
+      background: var(--surface2);
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .playlist-info { min-width: 0; }
+    .playlist-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .playlist-meta {
+      color: var(--text-dim);
+      font-size: 12px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .playlist-meta .scene-tag {
+      background: var(--accent-dim);
+      color: white;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    .playlist-meta .scene-tag.morning { background: #f59e0b; }
+    .playlist-meta .scene-tag.play { background: #ec4899; }
+    .playlist-meta .scene-tag.sport { background: #3b82f6; }
+    .playlist-meta .scene-tag.night { background: #8b5cf6; }
+    .playlist-toggle {
+      color: var(--text-dim);
+      font-size: 18px;
+      padding: 8px;
+      transition: transform 0.2s;
+    }
+    .playlist-card.expanded .playlist-toggle { transform: rotate(180deg); }
+
+    /* Song list inside playlist */
+    .playlist-songs {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      border-top: 1px solid transparent;
+    }
+    .playlist-card.expanded .playlist-songs {
+      max-height: 4000px;
+      border-top-color: var(--border);
+    }
+    .song-row {
+      display: grid;
+      grid-template-columns: 1fr 130px 70px 70px 50px;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .song-row:last-child { border-bottom: none; }
+    .song-row:hover { background: var(--surface2); }
+    .song-num { color: var(--text-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+    .song-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .song-artist { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .song-duration { color: var(--text-dim); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+    .song-status {
+      font-size: 11px;
+      text-align: center;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .song-status.ok { background: #064e3b; color: #6ee7b7; }
+    .song-status.pending { background: #422006; color: #fbbf24; }
+    .song-status.fail { background: #450a0a; color: #fca5a5; }
+
+    /* Empty state */
+    .empty {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 14px;
+      background: var(--surface);
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <a href="/" class="back">← 电台首页</a>
+    <span style="color:var(--text-dim);">·</span>
+    <a href="/admin/dj" class="back">🎛 92DJ</a>
+  </div>
+  <h1>📚 历史歌单库</h1>
+  <div class="subtitle">192电台 已采纳的全部歌单（含歌曲清单）</div>
+
+  <div class="stats-bar">
+    <span><span class="num" id="stat-playlists">0</span> <span class="dim">个歌单</span></span>
+    <span><span class="num" id="stat-songs">0</span> <span class="dim">首歌</span></span>
+    <span><span class="num" id="stat-scenes">0</span> <span class="dim">个场景</span></span>
+    <span class="dim">最旧 <span id="stat-oldest" style="color:var(--text);">—</span></span>
+  </div>
+
+  <div class="filter-bar" id="filter-bar"></div>
+  <input class="search" id="search" placeholder="搜索歌名 / 歌手 / 歌单名..." oninput="render()">
+
+  <div id="root"><div class="empty">加载中...</div></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let data = null;     // {scenes: {morning:[...], play:[...], sport:[...], night:[...]}}
+    let currentFilter = 'all';
+
+    const SCENE_LABELS = {
+      morning: '🌅 早起',
+      play:    '🎮 游戏',
+      sport:   '🏃 运动',
+      night:   '🌙 晚安',
+    };
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+      const isYesterday = d.toDateString() === yesterday.toDateString();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (sameDay) return `今天 ${hh}:${mm}`;
+      if (isYesterday) return `昨天 ${hh}:${mm}`;
+      return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
+    }
+
+    function formatDuration(ms) {
+      if (!ms) return '—';
+      const sec = Math.floor(ms / 1000);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('/api/scenes/history');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        data = await r.json();
+        renderStats();
+        renderFilters();
+        render();
+      } catch (e) {
+        $('root').innerHTML = `<div class="empty" style="color:var(--err);">加载失败: ${e.message}</div>`;
+      }
+    }
+
+    function renderStats() {
+      const all = collectAll();
+      $('stat-playlists').textContent = all.length;
+      $('stat-songs').textContent = all.reduce((s, p) => s + (p.songs || []).length, 0);
+      $('stat-scenes').textContent = Object.keys(data.scenes || {}).length;
+      const oldest = all
+        .map(p => p.adopted_at)
+        .filter(Boolean)
+        .sort()[0];
+      $('stat-oldest').textContent = oldest ? formatDate(oldest) : '—';
+    }
+
+    function renderFilters() {
+      const counts = {};
+      counts.all = collectAll().length;
+      for (const k of Object.keys(SCENE_LABELS)) {
+        counts[k] = (data.scenes[k] || []).length;
+      }
+      const pills = [{ k: 'all', label: '全部' }]
+        .concat(Object.keys(SCENE_LABELS).map(k => ({ k, label: SCENE_LABELS[k] })));
+      $('filter-bar').innerHTML = pills.map(p =>
+        `<div class="filter-pill ${p.k === currentFilter ? 'active' : ''}" onclick="setFilter('${p.k}')">${p.label} (${counts[p.k] || 0})</div>`
+      ).join('');
+    }
+
+    function setFilter(k) {
+      currentFilter = k;
+      renderFilters();
+      render();
+    }
+
+    function collectAll() {
+      const all = [];
+      for (const [scene, pls] of Object.entries(data.scenes || {})) {
+        for (const p of (pls || [])) {
+          all.push({ ...p, _scene: scene });
+        }
+      }
+      // newest first
+      all.sort((a, b) => new Date(b.adopted_at || 0) - new Date(a.adopted_at || 0));
+      return all;
+    }
+
+    function render() {
+      if (!data) return;
+      let all = collectAll();
+      if (currentFilter !== 'all') {
+        all = all.filter(p => p._scene === currentFilter);
+      }
+      const q = ($('search').value || '').toLowerCase().trim();
+
+      if (all.length === 0) {
+        $('root').innerHTML = `<div class="empty">${q ? '没有匹配的歌单' : '还没有采纳任何歌单'}</div>`;
+        return;
+      }
+
+      $('root').innerHTML = all.map((p, idx) => {
+        const songCount = (p.songs || []).length;
+        const keyword = p.matched_keyword || '—';
+        const songsFiltered = q
+          ? (p.songs || []).filter(s =>
+              (s.name || '').toLowerCase().includes(q) ||
+              (s.artist || '').toLowerCase().includes(q))
+          : (p.songs || []);
+        const songsHtml = songsFiltered.map((s, i) => {
+          const status = s.downloaded ? 'ok' : (s.failed ? 'fail' : 'pending');
+          const statusText = s.downloaded ? '已下载' : (s.failed ? '失败' : '待下');
+          return `
+            <div class="song-row">
+              <div class="song-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+              <div class="song-artist" title="${escapeHtml(s.artist)}">${escapeHtml(s.artist || '—')}</div>
+              <div class="song-duration">${formatDuration(s.duration)}</div>
+              <div class="song-num">#${i + 1}</div>
+              <div class="song-status ${status}">${statusText}</div>
+            </div>
+          `;
+        }).join('');
+        return `
+          <div class="playlist-card" id="pl-${idx}">
+            <div class="playlist-header" onclick="togglePl(${idx})">
+              ${p.cover ? `<img class="playlist-cover" src="${p.cover}" loading="lazy" onerror="this.style.display='none'">` : '<div class="playlist-cover"></div>'}
+              <div class="playlist-info">
+                <div class="playlist-title">${escapeHtml(p.name)}</div>
+                <div class="playlist-meta">
+                  <span class="scene-tag ${p._scene}">${SCENE_LABELS[p._scene] || p._scene}</span>
+                  <span>${songCount} 首歌</span>
+                  <span>by ${escapeHtml(p.creator || '—')}</span>
+                  <span>播放 ${(p.play_count || 0).toLocaleString()}</span>
+                  <span>关键词: ${escapeHtml(keyword)}</span>
+                  <span>采纳于 ${formatDate(p.adopted_at)}</span>
+                </div>
+              </div>
+              <div class="playlist-toggle">▾</div>
+            </div>
+            <div class="playlist-songs">
+              ${songsHtml || '<div class="empty">该歌单没有匹配的歌曲</div>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function togglePl(idx) {
+      $(`pl-${idx}`).classList.toggle('expanded');
+    }
+
+    load();
+  </script>
+</body>
+</html>

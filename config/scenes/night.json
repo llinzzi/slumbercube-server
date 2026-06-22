@@ -1,0 +1,10 @@
+{
+  "name": "晚安",
+  "trigger": "0 21 * * *",
+  "keywords": ["晚安", "助眠音乐", "深度睡眠", "睡眠音乐", "放松", "Sleep"],
+  "tts_interval_songs": 5,
+  "interrupt_on_scene_change": false,
+  "allow_repeat_same_day": false,
+  "allow_repeat_next_day": true,
+  "min_song_count": 15
+}

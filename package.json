@@ -1,0 +1,23 @@
+{
+  "name": "radio-streams",
+  "version": "1.0.0",
+  "description": "Radio stream current song display server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate-playlist": "node scripts/generate_playlist.js",
+    "schedule:install": "node scripts/scheduled_runner.js install",
+    "schedule:uninstall": "node scripts/scheduled_runner.js uninstall",
+    "schedule:status": "node scripts/scheduled_runner.js status",
+    "dj:start": "nohup node scripts/dj_worker.js > .radio_playlist/worker.log 2>&1 & echo \"Worker started, see worker.pid\"",
+    "dj:stop": "if [ -f .radio_playlist/worker.pid ]; then kill $(cat .radio_playlist/worker.pid) && rm .radio_playlist/worker.pid; else echo 'No worker running'; fi",
+    "dj:status": "node scripts/dj_worker.js --status 2>/dev/null || node -e \"console.log(JSON.stringify(require('./scripts/dj_queue').readState(), null, 2))\"",
+    "dj:trigger": "node -e \"require('./scripts/dj_queue').trigger(process.argv[1] || 'manual'); console.log('Triggered:', process.argv[1] || 'manual')\" --"
+  },
+  "dependencies": {
+    "ejs": "^3.1.0",
+    "express": "^4.18.0",
+    "lowdb": "^1.0.0",
+    "sql.js": "^1.14.1"
+  }
+}

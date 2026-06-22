@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网易云收藏 · 192电台</title>
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #15181f;
+      --surface2: #1c2029;
+      --border: #2a2f3a;
+      --text: #d4d8e0;
+      --text-dim: #6b7280;
+      --accent: #22c55e;
+      --link: #60a5fa;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 20px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 22px; margin-bottom: 16px; }
+    h1 span { color: var(--accent); }
+    .nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .nav a:hover { color: var(--text); border-color: var(--text-dim); }
+
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .header .sub {
+      color: var(--text-dim);
+      font-size: 12px;
+      font-family: 'SF Mono', monospace;
+    }
+    .refresh-btn {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      margin-left: 8px;
+    }
+    .refresh-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
+    .search {
+      margin-bottom: 14px;
+    }
+    .search input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .search input:focus { border-color: var(--accent); }
+    .search input::placeholder { color: var(--text-dim); }
+
+    /* Playlist group: parent header + child song table */
+    .group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .group-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    .group-head .name {
+      flex: 1;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .group-head .name.untagged { color: var(--text-dim); font-style: italic; }
+    .group-head .count {
+      color: var(--text-dim);
+      font-size: 12px;
+      font-family: 'SF Mono', monospace;
+    }
+    .group-head .meta {
+      color: var(--text-dim);
+      font-size: 11px;
+      font-family: 'SF Mono', monospace;
+    }
+
+    .songs {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .songs thead th {
+      position: sticky;
+      top: 0;
+      text-align: left;
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 1;
+    }
+    .songs tbody tr { border-bottom: 1px solid var(--border); }
+    .songs tbody tr:last-child { border-bottom: none; }
+    .songs tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .songs td { padding: 7px 16px; font-size: 12px; }
+    .songs td.num { font-family: 'SF Mono', monospace; color: var(--text-dim); width: 50px; }
+    .songs td.title { font-weight: 500; }
+    .songs td.artist { color: var(--text-dim); }
+    .songs td.time { font-family: 'SF Mono', monospace; color: var(--text-dim); width: 160px; font-size: 11px; }
+    .songs td.act { width: 70px; text-align: right; }
+
+    .play-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 9px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .play-btn:hover { border-color: var(--accent); background: rgba(34,197,94,0.08); }
+
+    .state {
+      padding: 28px 20px;
+      text-align: center;
+      color: var(--text-dim);
+    }
+    .state.error { color: #f87171; }
+
+    .preview {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 20px;
+      width: min(960px, calc(100vw - 40px));
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 10;
+    }
+    .preview.show { display: flex; }
+    .preview .now { flex: 1; min-width: 0; }
+    .preview .now .t { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preview .now .a { font-size: 11px; color: var(--text-dim); }
+    .preview audio { height: 32px; max-width: 360px; }
+    .preview .close {
+      background: transparent;
+      color: var(--text-dim);
+      border: none;
+      cursor: pointer;
+      font-size: 20px;
+      padding: 0 6px;
+      line-height: 1;
+    }
+    .preview .close:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/">← 返回电台首页</a>
+      <a href="/admin/dj">🎛 92DJ</a>
+    </div>
+
+    <div class="header">
+      <h1>📀 网易云收藏 <span>· 92DJ 下载</span></h1>
+      <div>
+        <span class="sub" id="meta">加载中…</span>
+        <button class="refresh-btn" id="refresh">刷新</button>
+      </div>
+    </div>
+
+    <div class="search">
+      <input id="search" type="text" placeholder="按歌名/艺人/歌单名筛选…">
+    </div>
+
+    <div id="content">
+      <div class="state">加载中…</div>
+    </div>
+
+    <div class="preview" id="preview">
+      <div class="now">
+        <div class="t" id="p-title">—</div>
+        <div class="a" id="p-artist">—</div>
+      </div>
+      <audio id="audio" controls></audio>
+      <button class="close" id="p-close" title="关闭">×</button>
+    </div>
+  </div>
+
+  <script>
+    const contentEl = document.getElementById('content');
+    const meta = document.getElementById('meta');
+    const refresh = document.getElementById('refresh');
+    const search = document.getElementById('search');
+    const preview = document.getElementById('preview');
+    const audio = document.getElementById('audio');
+    const pTitle = document.getElementById('p-title');
+    const pArtist = document.getElementById('p-artist');
+    const pClose = document.getElementById('p-close');
+
+    let allSongs = [];
+    let allPlaylists = []; // [{key, name, ids, songs, latestAt}]
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      })[c]);
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d)) return '—';
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function fmtRange(from, to) {
+      if (!from || !to) return '—';
+      const a = new Date(from), b = new Date(to);
+      if (isNaN(a) || isNaN(b)) return '—';
+      const pad = n => String(n).padStart(2, '0');
+      const fd = `${a.getFullYear()}-${pad(a.getMonth()+1)}-${pad(a.getDate())} ${pad(a.getHours())}:${pad(a.getMinutes())}`;
+      const td = `${b.getFullYear()}-${pad(b.getMonth()+1)}-${pad(b.getDate())} ${pad(b.getHours())}:${pad(b.getMinutes())}`;
+      // Same day → "06-18 22:30 → 23:05"; different → "06-18 22:30 → 06-19 01:10"
+      if (a.toDateString() === b.toDateString()) {
+        const tShort = `${pad(b.getHours())}:${pad(b.getMinutes())}`;
+        return `${fd} → ${tShort}`;
+      }
+      return `${fd} → ${td}`;
+    }
+
+    async function load() {
+      contentEl.innerHTML = '<div class="state">加载中…</div>';
+      meta.textContent = '加载中…';
+      try {
+        const r = await fetch('/api/library', { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        allSongs = d.songs || [];
+        allPlaylists = groupByPlaylist(allSongs);
+        render();
+        meta.textContent = `${d.total} 首 · ${allPlaylists.length} 个歌单`;
+      } catch (e) {
+        contentEl.innerHTML = `<div class="state error">加载失败：${esc(e.message)}</div>`;
+        meta.textContent = '—';
+      }
+    }
+
+    // Group songs by playlist_name. Untagged songs (no playlist_name
+    // in the index) go to a synthetic "(未分组)" bucket at the end.
+    function groupByPlaylist(songs) {
+      const buckets = new Map();
+      for (const s of songs) {
+        const key = s.playlist_name || '(__untagged__)';
+        if (!buckets.has(key)) {
+          buckets.set(key, {
+            key,
+            name: s.playlist_name || '未分组',
+            untagged: !s.playlist_name,
+            ids: s.playlist_id ? [s.playlist_id] : [],
+            songs: [],
+            latestAt: null,
+            earliestAt: null,
+          });
+        }
+        const b = buckets.get(key);
+        b.songs.push(s);
+        if (!b.latestAt || s.downloaded_at > b.latestAt) b.latestAt = s.downloaded_at;
+        if (!b.earliestAt || s.downloaded_at < b.earliestAt) b.earliestAt = s.downloaded_at;
+        if (s.playlist_id && !b.ids.includes(s.playlist_id)) b.ids.push(s.playlist_id);
+      }
+      // Sort each bucket by downloaded_at desc
+      for (const b of buckets.values()) {
+        b.songs.sort((a, b) => b.downloaded_at.localeCompare(a.downloaded_at));
+      }
+      // Sort buckets: real playlists first (by latestAt desc), untagged last
+      const out = [...buckets.values()];
+      out.sort((a, b) => {
+        if (a.untagged !== b.untagged) return a.untagged ? 1 : -1;
+        return (b.latestAt || '').localeCompare(a.latestAt || '');
+      });
+      return out;
+    }
+
+    function render() {
+      if (!allSongs.length) {
+        contentEl.innerHTML = '<div class="state">/home/zulin/Music/网易云收藏 还是空的。让 92DJ 跑一次场景后会陆续出现。</div>';
+        return;
+      }
+      const filter = (search.value || '').trim().toLowerCase();
+
+      // Apply filter
+      const visiblePlaylists = allPlaylists.map(b => {
+        const songs = filter
+          ? b.songs.filter(s =>
+              (s.title || '').toLowerCase().includes(filter) ||
+              (s.artist || '').toLowerCase().includes(filter) ||
+              (b.name || '').toLowerCase().includes(filter))
+          : b.songs;
+        return songs.length ? { ...b, songs } : null;
+      }).filter(Boolean);
+
+      if (!visiblePlaylists.length) {
+        contentEl.innerHTML = `<div class="state">没有匹配「${esc(filter)}」的歌曲。</div>`;
+        return;
+      }
+
+      contentEl.innerHTML = visiblePlaylists.map(b => {
+        const head = `
+          <div class="group-head">
+            <div class="name ${b.untagged ? 'untagged' : ''}">${esc(b.name)}</div>
+            <div class="count">${b.songs.length} 首</div>
+            <div class="meta">${esc(fmtRange(b.earliestAt, b.latestAt))}</div>
+          </div>
+        `;
+        const table = `
+          <table class="songs">
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>歌名</th>
+                <th>艺人</th>
+                <th class="time">下载时间</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${b.songs.map((s, i) => `
+                <tr>
+                  <td class="num">${i + 1}</td>
+                  <td class="title">${esc(s.title || s.name)}</td>
+                  <td class="artist">${esc(s.artist || '—')}</td>
+                  <td class="time">${esc(fmtTime(s.downloaded_at))}</td>
+                  <td class="act">
+                    <button class="play-btn"
+                            data-url="${esc(s.play_url)}"
+                            data-title="${esc(s.title || s.name)}"
+                            data-artist="${esc(s.artist || '')}">▶ 试听</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        return `<div class="group">${head}${table}</div>`;
+      }).join('');
+
+      // Wire up play buttons
+      contentEl.querySelectorAll('.play-btn').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          pTitle.textContent = btn.dataset.title;
+          pArtist.textContent = btn.dataset.artist || '—';
+          audio.src = btn.dataset.url;
+          preview.classList.add('show');
+          audio.play().catch(() => {});
+        });
+      });
+    }
+
+    pClose.addEventListener('click', () => {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      preview.classList.remove('show');
+    });
+
+    refresh.addEventListener('click', load);
+    search.addEventListener('input', render);
+
+    load();
+  </script>
+</body>
+</html>

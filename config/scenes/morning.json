@@ -1,0 +1,10 @@
+{
+  "name": "早起",
+  "trigger": "0 6 * * *",
+  "keywords": ["早安", "起床", "清晨轻音乐", "晨间音乐", "早间音乐", "Morning"],
+  "tts_interval_songs": 4,
+  "interrupt_on_scene_change": false,
+  "allow_repeat_same_day": true,
+  "allow_repeat_next_day": true,
+  "min_song_count": 18
+}
