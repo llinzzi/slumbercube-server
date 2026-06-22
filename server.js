@@ -53,6 +53,23 @@ function recordReading(device_id, temperature, humidity, source = 'device') {
   saveDeviceReadings();
 }
 
+// Read temperature/humidity query params from /api/esp/* requests and
+// record them. This is the ONLY way sensor data enters the system —
+// POST /api/readings has been removed (see commit message).
+// Both /api/esp and /api/esp/:deviceId use this helper so the behavior
+// is identical regardless of which path the ESP32 firmware polls.
+function recordEspSensors(req) {
+  const t = req.query.temperature != null ? Number(req.query.temperature) : null;
+  const h = req.query.humidity != null ? Number(req.query.humidity) : null;
+  if (t == null && h == null) return null;
+  // device_id precedence: explicit body > path param > client IP
+  let id = req.params.deviceId
+        || (req.body && req.body.device_id)
+        || String(req.ip || req.connection?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+  recordReading(id, t, h, 'device');
+  return { device_id: id, temperature: t, humidity: h };
+}
+
 // Auto-record QWeather readings once per hour (per device 'qweather')
 let _lastWeatherRecordHour = null;
 function maybeRecordWeather() {
@@ -987,23 +1004,8 @@ app.get('/api/readings', function(req, res) {
 });
 
 // Manual insert (used by ESP devices reporting their sensors; also accepts batch)
-app.post('/api/readings', express.json(), function(req, res) {
-  const body = req.body || {};
-  const items = Array.isArray(body.readings) ? body.readings : [body];
-  // Capture client IP the same way /log middleware does, so device
-  // identity is consistent across both pages.
-  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
-  let inserted = 0;
-  for (const it of items) {
-    // device_id explicit in body wins; otherwise fall back to client IP.
-    // Strip IPv6-mapped prefix so ::ffff:192.168.8.80 → 192.168.8.80.
-    let id = it.device_id;
-    if (!id) id = String(clientIp).replace(/^::ffff:/, '');
-    recordReading(id, it.temperature, it.humidity, it.source || 'device');
-    inserted++;
-  }
-  res.json({ ok: true, inserted, total: _deviceReadings.length });
-});
+// POST /api/readings has been removed — temperature/humidity can ONLY
+// be uploaded via /api/esp or /api/esp/:deviceId (query params).
 
 // Hook into /api/esp/:deviceId — if request supplies sensor data via query or body, record it
 // (Devices will call POST /api/readings separately if they want rich telemetry)
@@ -1133,6 +1135,8 @@ app.get('/api/esp', async (req, res) => {
     const fullId = deviceId; // keep simple for now
     let dc = _deviceCursors.get(deviceId);
     console.log(`[api/esp] deviceId=${deviceId}, ip=${req.ip}, got_dc=${!!dc}, cursor=${dc?.cursor}`);
+    const sensorInfo = recordEspSensors(req);
+    if (sensorInfo) console.log(`[api/esp] sensor: ${JSON.stringify(sensorInfo)}`);
     if (!dc || dc.stamp !== _nextPlaylistStamp) {
       // First-ever request from this device (or new playlist → reset
       // all cursors). Always serve the very first song.
@@ -1333,6 +1337,8 @@ app.get('/api/esp', async (req, res) => {
 // ---------------------------------------------------------------
 app.get('/api/esp/:deviceId', async (req, res) => {
   const deviceId = req.params.deviceId;
+  const sensorInfo = recordEspSensors(req);
+  if (sensorInfo) console.log(`[esp/${deviceId}] sensor: ${JSON.stringify(sensorInfo)}`);
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   const base = `${proto}://${host}`;

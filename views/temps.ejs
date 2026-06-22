@@ -191,7 +191,7 @@
       </div>
 
       <div class="help">
-        设备上传：<code style="color:var(--accent);">POST /api/readings {temperature, humidity}</code>（不指定 device_id，自动用客户端 IP）
+        设备上传：<code style="color:var(--accent);">GET /api/esp/&lt;id&gt;?temperature=X&humidity=Y</code>（设备在拉歌时附带传感器数据）。
         · 每设备最多保留 <strong>1440</strong> 条读数 · 颜色固定按 IP 字典序分配
       </div>
     </div>
@@ -420,22 +420,33 @@ function renderDetailTable() {
 
 async function injectTestData() {
   // Simulate two ESP32 sensors on the LAN. We can't spoof the socket
-  // source IP, but we can hit POST with explicit device_id that the
-  // server will use directly (device_id explicit wins over client IP).
+  // source IP, but we can hit GET /api/esp/<device_id> with explicit
+  // device_id in the path + sensor data as query params. (POST /api/readings
+  // was removed — /api/esp/* is now the only upload channel.)
   const now = Date.now();
   const testDevs = ['192.168.8.80', '192.168.8.81'];
-  const readings = [];
+  const allReadings = [];
   for (const dev of testDevs) {
     const base = dev === '192.168.8.80' ? 24 : 22;
     for (let h = 24; h >= 0; h--) {
       const ts = new Date(now - h * 3600 * 1000).toISOString();
       const temp = base + Math.sin((24 - h) / 24 * Math.PI * 2) * 4 + (Math.random() - 0.5);
       const hum = 60 + Math.cos((24 - h) / 24 * Math.PI * 2) * 15 + (Math.random() - 0.5) * 5;
-      readings.push({ device_id: dev, ts, temperature: +temp.toFixed(1), humidity: +hum.toFixed(1), source: 'sim' });
+      allReadings.push({ device_id: dev, ts, temperature: +temp.toFixed(1), humidity: +hum.toFixed(1), source: 'sim' });
     }
   }
-  await fetch('/api/readings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ readings }) });
+  // Backend only keeps the LAST reading per device (each /api/esp hit is
+  // recorded with "now()" timestamp), so we send each device's most recent
+  // sample once. The dashboard shows "live" data, not historical.
+  // For demo data with a 24h spread, just hit it 24 times per device with
+  // backdated server-side time — not supported via HTTP. So we send only
+  // the latest reading per device; the user can click multiple times to
+  // accumulate samples.
+  for (const dev of testDevs) {
+    const latest = allReadings[allReadings.length - (dev.endsWith('.80') ? 2 : 1)];
+    const url = `/api/esp/${encodeURIComponent(dev)}?temperature=${latest.temperature}&humidity=${latest.humidity}`;
+    await fetch(url);
+  }
   await loadDevices();
   await loadReadings();
 }
