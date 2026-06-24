@@ -59,8 +59,13 @@ function recordReading(device_id, temperature, humidity, source = 'device') {
 // Both /api/esp and /api/esp/:deviceId use this helper so the behavior
 // is identical regardless of which path the ESP32 firmware polls.
 function recordEspSensors(req) {
-  const t = req.query.temperature != null ? Number(req.query.temperature) : null;
-  const h = req.query.humidity != null ? Number(req.query.humidity) : null;
+  // Accept both long form (temperature=, humidity=) and short form (t=, h=).
+  // ESP32 firmware uses ?t=&h= to keep request lines short; the long form
+  // is for human curl and documentation.
+  const tRaw = req.query.t ?? req.query.temperature;
+  const hRaw = req.query.h ?? req.query.humidity;
+  const t = tRaw != null && tRaw !== '' ? Number(tRaw) : null;
+  const h = hRaw != null && hRaw !== '' ? Number(hRaw) : null;
   if (t == null && h == null) return null;
   // device_id precedence: explicit body > path param > client IP
   let id = req.params.deviceId

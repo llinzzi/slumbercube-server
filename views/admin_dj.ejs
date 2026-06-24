@@ -155,31 +155,6 @@
       text-align: center;
     }
 
-    /* Netease search */
-    .netease-search { display: flex; gap: 8px; margin-bottom: 12px; }
-    .netease-search input {
-      flex: 1; background: var(--surface2);
-      border: 1px solid var(--border); color: var(--text);
-      border-radius: 4px; padding: 8px 12px; font-size: 13px;
-      font-family: inherit;
-    }
-    .netease-search input:focus { outline: none; border-color: var(--accent); }
-    .netease-results { display: flex; flex-direction: column; gap: 4px; }
-    .netease-hit {
-      display: grid;
-      grid-template-columns: 1fr 100px 80px;
-      gap: 8px; align-items: center;
-      padding: 8px 10px;
-      background: var(--surface2);
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    .netease-hit .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .netease-hit .artist { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .netease-hit .duration { color: var(--text-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
-    .netease-hit.vip { opacity: 0.5; }
-    .netease-hit .vip-badge { color: var(--warn); font-size: 10px; }
-
     /* History */
     .history-list { display: flex; flex-direction: column; gap: 6px; }
     .history-item {
@@ -460,27 +435,12 @@
       <span id="scene-saved-ts" class="meta" style="font-size:11px;color:var(--text-dim);"></span>
     </div>
   </div>
-  <!-- ====== 4. 网易云搜歌 ====== -->
-  <div class="card">
-    <h2>🔍 网易云搜歌</h2>
-    <div class="netease-search">
-      <input id="netease-q" placeholder="输入歌名 / 歌手，回车搜索..." />
-      <button class="btn" id="netease-search-btn">搜索</button>
-    </div>
-    <div id="netease-results" class="netease-results">
-      <div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索（数据走本地 sidecar 代理）</div>
-    </div>
-  </div>
-
   <div id="toast" class="toast"></div>
 
   <script>
     const $ = id => document.getElementById(id);
-    // escapeHtml used by many render functions below. Declared as a
-    // const arrow function (not function declaration) so it doesn't
-    // get tangled with TDZ semantics, and we expose it on window
-    // explicitly so inline `onclick="fetchNeteaseUrl(...escapeHtml(s.name)...)"`
-    // strings can resolve it via the global scope.
+    // escapeHtml used by many render functions below. Exposed on window
+    // so any render function can resolve it from inline event handlers.
     const escapeHtml = (s) => String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -902,65 +862,6 @@
       }
     }
     $('cancel-btn').addEventListener('click', cancel);
-
-    // ---- Netease search ----
-    let neteaseDebounce = null;
-    async function searchNetease() {
-      const q = $('netease-q').value.trim();
-      if (!q) {
-        $('netease-results').innerHTML =
-          '<div class="meta" style="padding:16px;text-align:center;">输入关键词开始搜索</div>';
-        return;
-      }
-      $('netease-results').innerHTML = '<div class="meta" style="padding:12px;">搜索中...</div>';
-      try {
-        const j = await api(`/api/netease/search?q=${encodeURIComponent(q)}&limit=8`);
-        const songs = j?.result?.songs || [];
-        if (songs.length === 0) {
-          $('netease-results').innerHTML = '<div class="meta" style="padding:16px;text-align:center;">没有结果</div>';
-          return;
-        }
-        $('netease-results').innerHTML = songs.map(s => {
-          const isVip = s.fee === 1;
-          const artist = (s.artists || []).map(a => a.name).join('/');
-          const dur = Math.round((s.duration || 0) / 1000);
-          return `
-            <div class="netease-hit ${isVip ? 'vip' : ''}">
-              <div>
-                <div class="name">${escapeHtml(s.name)} ${isVip ? '<span class="vip-badge">VIP</span>' : ''}</div>
-                <div class="artist">${escapeHtml(artist)}</div>
-              </div>
-              <div class="duration">${fmtClock(dur)}</div>
-              <button class="btn" style="font-size:11px;padding:4px 8px;" onclick="fetchNeteaseUrl('${s.id}', '${escapeHtml(s.name).replace(/'/g, "\\'")}')">▶ 试听</button>
-            </div>
-          `;
-        }).join('');
-      } catch (e) {
-        $('netease-results').innerHTML =
-          `<div class="meta" style="color:var(--err);padding:12px;">搜索失败: ${e.message}</div>`;
-      }
-    }
-    async function fetchNeteaseUrl(id, name) {
-      try {
-        const j = await api(`/api/netease/play/${id}`);
-        const item = j?.data?.[0];
-        if (!item?.url) {
-          toast(`「${name}」需要 VIP，无法试听`, true);
-          return;
-        }
-        window.open(item.url, '_blank');
-      } catch (e) {
-        toast(`拿 URL 失败: ${e.message}`, true);
-      }
-    }
-    $('netease-search-btn').addEventListener('click', searchNetease);
-    $('netease-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchNetease(); });
-    $('netease-q').addEventListener('input', () => {
-      clearTimeout(neteaseDebounce);
-      neteaseDebounce = setTimeout(() => {
-        if ($('netease-q').value.trim().length >= 2) searchNetease();
-      }, 400);
-    });
 
     /**
      * Read the persistent llm_history.jsonl (which build_playlist.js

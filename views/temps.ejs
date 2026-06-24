@@ -191,8 +191,8 @@
       </div>
 
       <div class="help">
-        设备上传：<code style="color:var(--accent);">GET /api/esp/&lt;id&gt;?temperature=X&humidity=Y</code>（设备在拉歌时附带传感器数据）。
-        · 每设备最多保留 <strong>1440</strong> 条读数 · 颜色固定按 IP 字典序分配
+        设备上传：<code style="color:var(--accent);">GET /api/esp/&lt;id&gt;?t=X&h=Y</code>（设备拉歌时附带温湿度，short form）。
+        · 也接受 <code>temperature</code>/<code>humidity</code>（long form）· 每设备最多保留 <strong>1440</strong> 条读数
       </div>
     </div>
   </div>
@@ -444,6 +444,8 @@ async function injectTestData() {
   // accumulate samples.
   for (const dev of testDevs) {
     const latest = allReadings[allReadings.length - (dev.endsWith('.80') ? 2 : 1)];
+    // ESP32 firmware uses ?t=&h= (short form). Demo uses long form
+    // (temperature=&humidity=) so the help text shows both paths work.
     const url = `/api/esp/${encodeURIComponent(dev)}?temperature=${latest.temperature}&humidity=${latest.humidity}`;
     await fetch(url);
   }
