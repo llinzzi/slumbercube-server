@@ -361,6 +361,7 @@
     <div id="run-history-card" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
       <div class="meta" style="margin-bottom:8px; font-weight:600;">
         📚 运行历史 <span id="run-history-count" class="meta" style="font-weight:400;margin-left:8px;"></span>
+        <button id="btn-refresh-history" class="btn" style="margin-left:8px;font-size:11px;padding:2px 8px;">🔄 刷新</button>
       </div>
       <div id="llm-history-list" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
@@ -1113,6 +1114,9 @@
       // (input listener moved to scene-manager, was formerly on ip-scenes)\n      // (listener block removed — preview auto-refreshes via save);
     });
 
+      // Manual refresh for run history (no auto-refresh after initial load)
+      const rhBtn = document.getElementById('btn-refresh-history');
+      if (rhBtn) rhBtn.addEventListener('click', renderLlmHistory);
         // ── Scene manager: unified labels + keywords + cron + run ──
     const SCENE_ICONS = {
       morning: '\ud83c\udf05', play: '\ud83c\udfae', sport: '\u26bd', night: '\ud83c\udf19', focus: '\ud83d\udcda', sleep: '\ud83d\ude34',
@@ -1386,7 +1390,6 @@
     // re-renders history — that avoids collapsing rebuilt details
     // and losing scroll positions.
     setTimeout(renderLlmHistory, 500);
-    setInterval(renderLlmHistory, 10000);
     setInterval(refresh, 1500);
   </script>
 </body>
