@@ -688,8 +688,6 @@
 
     function renderStatus(status) {
       const { state, batch, persona, started_at, progress, result, history } = status;
-      // 运行历史（最近 N 次 trigger，含搜索详情 + LLM 详情）
-      renderLlmHistory();
 
       // State badge
       const badge = $('state-badge');
@@ -1383,6 +1381,12 @@
     // ---- Init ----
     loadPersonas();
     refresh();
+    // Run history renders once on load, then on a slow 10s interval.
+    // The 1.5s status refresh calls renderStatus() which no longer
+    // re-renders history — that avoids collapsing rebuilt details
+    // and losing scroll positions.
+    setTimeout(renderLlmHistory, 500);
+    setInterval(renderLlmHistory, 10000);
     setInterval(refresh, 1500);
   </script>
 </body>
