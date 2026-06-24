@@ -146,7 +146,11 @@ const DEFAULT_SETTINGS = {
     host:   'nn3aaqw4wr.re.qweatherapi.com',
   },
   minimax: {
-    apiKey:         '',                                  // user must supply
+    // apiKey is intentionally empty by default — it's resolved at request
+    // time from config/settings.json first, then from ~/.mmx/config.json
+    // (the mmx CLI's own config) as fallback. This way users who already
+    // ran `mmx auth` don't have to copy their key into the Settings UI.
+    apiKey:         '',
     anthropicBase:  'https://api.minimaxi.com/anthropic/v1/messages',
     anthropicModel: 'MiniMax-M3',
     ttsBase:        'https://api.minimaxi.com/v1/t2a_v2',
@@ -421,6 +425,18 @@ const LOCAL_METAINT = 8192;
 // Stations dir is set in loadSettings().library.stationsDir (see below).
 // Helper for live re-reads after /api/settings POST.
 function getStationsDir() { return loadSettings().library.stationsDir; }
+
+// Live-resolve the minimax key. settings.minimax.apiKey takes precedence;
+// if empty, fall back to ~/.mmx/config.json (mmx CLI auth). Returns null
+// if neither source is set.
+function getMinimaxApiKey() {
+  const fromSettings = loadSettings().minimax.apiKey;
+  if (fromSettings) return fromSettings;
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf-8'));
+    return cfg.api_key || null;
+  } catch { return null; }
+}
 
 // Fallback const for startup-time resolution. Settings changes at runtime
 // won't affect this const — but getStationsDir() reads live value.
@@ -1823,13 +1839,19 @@ function maskKey(k) {
 
 app.get('/api/settings', (req, res) => {
   const s = loadSettings();
+  // For the minimax key, fall back to ~/.mmx/config.json so the UI
+  // correctly shows '已设置' if either source has the key.
+  const mmxKey = s.minimax.apiKey || (() => {
+    try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf-8')).api_key; }
+    catch { return null; }
+  })();
   res.json({
     weather: {
       host: s.weather.host,
       apiKey: maskKey(s.weather.apiKey),
     },
     minimax: {
-      apiKey: maskKey(s.minimax.apiKey),
+      apiKey: maskKey(mmxKey),
       anthropicBase: s.minimax.anthropicBase,
       anthropicModel: s.minimax.anthropicModel,
       ttsBase: s.minimax.ttsBase,
