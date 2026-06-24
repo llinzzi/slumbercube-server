@@ -2,7 +2,7 @@
 
 床头广播盒子的 Node.js / Express 服务，部署在 `192.168.8.192:3000`。
 
-单电台模式（`~/Music/网易云收藏/` 30+ 首 mp3），由 92DJ 后台自动抓网易云收藏 → LLM 写引言 → TTS → lame 拼接 → ESP32 端通过 `/api/esp` 抽歌播放。admin UI 编排场景、定时、音量；`/temps` 收设备温湿度画图；`/log` 看 API 请求。Settings 页可改天气城市/API key、minimax token、曲库目录。
+单电台模式（`~/Music/网易云收藏/` 30+ 首 mp3），由 DJ Agent 后台自动抓网易云收藏 → LLM 写引言 → TTS → lame 拼接 → ESP32 端通过 `/api/esp` 抽歌播放。admin UI 编排场景、定时、音量；`/temps` 收设备温湿度画图；`/log` 看 API 请求。Settings 页可改天气城市/API key、minimax token、曲库目录。
 
 ## 目录
 
@@ -74,7 +74,7 @@ graph LR
 | 路径 | 标题 | 用途 |
 |------|------|------|
 | `/` | 🎧 192电台 | 首页 + 当前歌 |
-| `/dj` | 🎧 92DJ | 控制台：intro prompts + 场景任务管理 |
+| `/dj` | 🎧 DJ Agent | 控制台：intro prompts + 场景任务管理 |
 | `/library` | 📀 网易云收藏 | 曲目库（按歌单分组） |
 | `/temps` | 🌡️ 温湿度图表 | 设备上传的温湿度 + QWeather 基线 |
 | `/log` | 📋 API 日志 | 所有 API 请求录制（自动刷新） |
@@ -84,7 +84,7 @@ graph LR
 
 ```mermaid
 graph LR
-  H[🎧 192电台] --> DJ[🎛 92DJ] --> L[📀 曲目库] --> T[🌡 温湿度] --> LG[📋 日志] --> S[⚙️ 设置]
+  H[🎧 192电台] --> DJ[🎛 DJ Agent] --> L[📀 曲目库] --> T[🌡 温湿度] --> LG[📋 日志] --> S[⚙️ 设置]
 ```
 
 客户端 JS 自动按 `pathname` 给当前页面高亮 `.active`。
@@ -107,7 +107,7 @@ graph LR
 | POST | `/api/reshuffle` | 重洗当前歌单 |
 | GET | `/api/tts-intro` | 当前 TTS 介绍 |
 
-### 92DJ 控制台
+### DJ Agent 控制台
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -335,7 +335,7 @@ radio_streams/
 │       └── scene_audit.js    # 场景命中统计
 ├── views/
 │   ├── index.ejs             # 首页
-│   ├── admin_dj.ejs          # /dj 92DJ 控制台
+│   ├── admin_dj.ejs          # /dj DJ Agent 控制台
 │   ├── library.ejs           # /library 曲目库
 │   ├── temps.ejs             # /temps 温湿度
 │   ├── log.ejs               # /log API 日志

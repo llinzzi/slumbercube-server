@@ -8,7 +8,7 @@
  * but those fields don't exist on history entries written before 2026-06-19
  * (when we added them). For older downloads we fall back to the mtime → the
  * most recent playlist the user has *ever* used (state.result.playlist_name),
- * because in practice all 92DJ downloads come from the single NCM playlist
+ * because in practice all DJ Agent downloads come from the single NCM playlist
  * the worker last selected — there has only been one NCM playlist in use
  * (the morning scene_fetch on 2026-06-18 used "听了心情会好的歌 DaDaDa❤️").
  *
@@ -40,7 +40,7 @@ const queue = readJSON(QUEUE_STATE, { result: null, history: [] });
 // anything that ran before 2026-06-19 (when we added history.playlist_id/
 // name), so the only playlist we can actually attribute is the one from
 // state.result — the playlist the worker last used. Pragmatically, all
-// 92DJ downloads come from NCM playlists selected by scene_fetch.js, and
+// DJ Agent downloads come from NCM playlists selected by scene_fetch.js, and
 // we only have one playlist name in scope: state.result.playlist_name.
 let recentPlaylistId = null;
 let recentPlaylistName = null;

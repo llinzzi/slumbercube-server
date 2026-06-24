@@ -2467,7 +2467,7 @@ app.get('/api/dj/vibes', (req, res) => {
 });
 
 // /api/dj/personas — flat list of all (batch, persona) combos for the
-// 92DJ panel. The UI uses this to render the persona card grid and
+// DJ Agent panel. The UI uses this to render the persona card grid and
 // validate clicks before triggering. We only return public-facing fields
 // (id, name, batch, label); the prompt bodies stay private to /api/dj/vibes.
 app.get('/api/dj/personas', (req, res) => {
@@ -2614,7 +2614,7 @@ app.get('/api/library', async (req, res) => {
     }
 
     // Newest first — matches the "what was downloaded most recently"
-    // mental model that drives the 92DJ workflow.
+    // mental model that drives the DJ Agent workflow.
     songs.sort((a, b) => b.downloaded_at.localeCompare(a.downloaded_at));
 
     res.json({
@@ -2656,7 +2656,7 @@ function withScanLock(fn) {
 // ---------------------------------------------------------------------------
 // NeteaseCloudMusicApi proxy endpoints (branch feat/netease-only)
 // ---------------------------------------------------------------------------
-// These let the 92DJ panel and any future web UI search + preview 网易云
+// These let the DJ Agent panel and any future web UI search + preview 网易云
 // tracks without us bundling the NCM client in the browser. They proxy
 // through to the NCM sidecar running on NETEASE_API (default :3001) and
 // rewrite the response into the shape our UI already uses.
