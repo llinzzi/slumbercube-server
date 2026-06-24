@@ -1018,7 +1018,7 @@ app.get('/api/readings', function(req, res) {
 setInterval(maybeRecordWeather, 5 * 60 * 1000);  // check every 5min, dedupe by hour
 // Run once on startup (after 10s grace so weather is initialized)
 setTimeout(maybeRecordWeather, 10000);
-app.get('/admin', (req, res) => res.redirect(301, '/admin/dj'));
+app.get('/admin', (req, res) => res.redirect(301, '/dj'));
 
 // Current shuffled playlist order
 app.get('/api/playlist', (req, res) => {
@@ -1686,9 +1686,12 @@ app.post('/api/tts-intro', express.json(), (req, res) => {
 // ---------------------------------------------------------------
 const DJ_QUEUE = require('./scripts/dj_queue');
 
-app.get('/admin/dj', (req, res) => {
+// Canonical route: /dj. /admin/dj kept as 301 alias for back-compat
+// (bookmarks, old chat history, etc).
+app.get('/dj', (req, res) => {
   res.render('admin_dj');
 });
+app.get('/admin/dj', (req, res) => res.redirect(301, '/dj'));
 
 app.get('/api/dj/status', (req, res) => {
   const state = DJ_QUEUE.readState();
