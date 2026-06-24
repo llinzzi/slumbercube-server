@@ -379,7 +379,7 @@
       </div>
 
       <div style="margin-bottom:8px;">
-        <div class="meta" style="margin-bottom:4px;">💬 User Template（${sceneHint} ${songs.length} ${songList} ${weatherToday} ${weatherTomorrow} 占位符）</div>
+        <div class="meta" style="margin-bottom:4px;">💬 User Template（占位符：${sceneHint} ${songs.length} ${songList} ${weatherToday} ${weatherTomorrow} ${todayDate} ${weekday}）</div>
         <textarea id="ip-user" rows="5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
       </div>
 
@@ -1065,13 +1065,17 @@
       // change the formatter, update these too.
       const sampleWeatherToday    = '多云转阴，22~28°C';
       const sampleWeatherTomorrow = '小雨，21~26°C';
+      const sampleTodayDate       = '2026年6月25日';
+      const sampleWeekday         = '星期四';
       const sys = cfg.system_template.replace(/\$\{sceneHint\}/g, sampleHint);
       const usr = cfg.user_template
         .replace(/\$\{sceneHint\}/g, sampleHint)
         .replace(/\$\{songs\.length\}/g, '2')
         .replace(/\$\{songList\}/g, sampleSongList)
         .replace(/\$\{weatherToday\}/g, sampleWeatherToday)
-        .replace(/\$\{weatherTomorrow\}/g, sampleWeatherTomorrow);
+        .replace(/\$\{weatherTomorrow\}/g, sampleWeatherTomorrow)
+        .replace(/\$\{todayDate\}/g, sampleTodayDate)
+        .replace(/\$\{weekday\}/g, sampleWeekday);
       $('ip-preview').textContent =
         '=== SYSTEM ===\n' + sys + '\n\n=== USER ===\n' + usr
         + '\n\n=== FALLBACK (例) ===\n'

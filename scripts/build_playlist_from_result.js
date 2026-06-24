@@ -287,6 +287,17 @@ function formatWeatherLine(day) {
   return [label, range].filter(Boolean).join('，');
 }
 
+// Chinese date/weekday helpers for ${todayDate} / ${weekday} template vars
+function getChinaDate() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
+}
+const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+function getChinaWeekday() {
+  return WEEKDAY_NAMES[new Date().getDay()];
+}
+
 async function anthropicChat(system, user, timeoutMs = 120000) {
   if (!ANTHROPIC_KEY) {
     log('anthropic: no API key found in ~/.mmx/config.json');
@@ -383,6 +394,8 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
   const daily = await fetchWeather7d();
   const weatherToday    = daily ? formatWeatherLine(daily[0]) : '';
   const weatherTomorrow = daily ? formatWeatherLine(daily[1]) : '';
+  const todayDate       = getChinaDate();
+  const weekday         = getChinaWeekday();
   if (!daily) log('  weather fetch failed — placeholders will be empty');
 
   const systemPrompt = promptCfg.system_template
@@ -392,7 +405,9 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
     .replace(/\$\{songs\.length\}/g, String(songs.length))
     .replace(/\$\{songList\}/g, songList)
     .replace(/\$\{weatherToday\}/g, weatherToday)
-    .replace(/\$\{weatherTomorrow\}/g, weatherTomorrow);
+    .replace(/\$\{weatherTomorrow\}/g, weatherTomorrow)
+    .replace(/\$\{todayDate\}/g, todayDate)
+    .replace(/\$\{weekday\}/g, weekday);
 
   try {
     // Direct HTTPS POST to the Anthropic-compatible endpoint. We
