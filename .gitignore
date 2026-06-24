@@ -18,3 +18,4 @@ config/weather.json
 
 # Central runtime settings — contains API keys, per-host
 config/settings.json
+.radio_state.json
