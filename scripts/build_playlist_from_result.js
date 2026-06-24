@@ -70,9 +70,12 @@ function loadSettings() {
 }
 
 const SETTINGS = loadSettings();
-const WEATHER_KEY       = SETTINGS.weather.apiKey;
-const WEATHER_HOST      = SETTINGS.weather.host;
-const WEATHER_LOCATION  = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'weather.json'), 'utf-8')).locationId; } catch { return '101210106'; } })();
+// Weather is now unified — we fetch from the local server's /api/weather
+// endpoint, which uses an in-memory 1-min cache. Saves a QWeather roundtrip
+// per scene-fetch and means changing the city/host in the Settings UI
+// takes effect for the next build without server restart (and worker).
+const SERVER_BASE = process.env.RADIO_STREAMS_URL || 'http://127.0.0.1:3000';
+
 const ANTHROPIC_KEY     = SETTINGS.minimax.apiKey || (() => { try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf-8')).api_key; } catch { return null; } })();
 const ANTHROPIC_BASE    = SETTINGS.minimax.anthropicBase;
 const ANTHROPIC_MODEL   = SETTINGS.minimax.anthropicModel;
@@ -235,47 +238,38 @@ function getSceneLabel(sceneHints, sceneKey) {
 // ---------------------------------------------------------------
 
 
+// Fetch weather from the local server (which has the in-memory cache
+// and the city/host config). Returns the daily[] array, or null on
+// any error. 5s timeout so a hung server doesn't stall the build.
 function fetchWeather7d() {
   return new Promise((resolve) => {
-    // Qweather's reverse-proxy host ALWAYS returns gzipped responses,
-    // even when the client sends `Accept-Encoding: identity` — tested
-    // 2026-06-20 from 192. We must request gzip and gunzip the body
-    // ourselves; Node's https client has no auto-decompression.
-    const url = `https://${WEATHER_HOST}/v7/weather/7d?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`;
-    const req = https.get(url, {
-      headers: { 'Accept-Encoding': 'gzip' },
-      // Fresh socket per call — the 192 server has observed ECONNRESET
-      // on keep-alive sockets to this host.
-      agent: false,
-    }, (res) => {
+    const req = require('http').get(`${SERVER_BASE}/api/weather`, { timeout: 5000 }, (res) => {
       if (res.statusCode !== 200) {
         res.resume();
-        resolve(null);
-        return;
-      }
-      let stream = res;
-      if (res.headers['content-encoding'] === 'gzip') {
-        stream = res.pipe(zlib.createGunzip());
+        log(`weather: server returned ${res.statusCode}`);
+        return resolve(null);
       }
       let data = '';
-      stream.setEncoding('utf8');
-      stream.on('data', (c) => (data += c));
-      stream.on('end', () => {
+      res.setEncoding('utf8');
+      res.on('data', (c) => (data += c));
+      res.on('end', () => {
         try {
           const j = JSON.parse(data);
-          if (j && j.code === '200' && Array.isArray(j.daily) && j.daily.length >= 2) {
+          if (j && Array.isArray(j.daily) && j.daily.length >= 2) {
             resolve(j.daily);
           } else {
+            log('weather: response missing daily[]');
             resolve(null);
           }
-        } catch (_) {
+        } catch (e) {
+          log('weather: parse error:', e.message);
           resolve(null);
         }
       });
-      stream.on('error', () => resolve(null));
+      res.on('error', () => resolve(null));
     });
-    req.on('error', () => resolve(null));
-    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+    req.on('error', (e) => { log('weather: fetch error:', e.message); resolve(null); });
+    req.on('timeout', () => { req.destroy(); log('weather: timeout'); resolve(null); });
   });
 }
 

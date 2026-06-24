@@ -281,6 +281,9 @@ function fetchWeatherData() {
       fetchWeather(forecastUrl),
     ]).then(([now, forecast]) => {
       if (now.code === '200' && forecast.code === '200') {
+        // Flat fields kept for back-compat with getWeatherDesc() callers.
+        // Also include the full daily[] array + now + updateTime so
+        // /api/weather can serve the worker (and UI) without re-fetching.
         resolve({
           temp: now.now.temp,
           text: now.now.text,
@@ -289,6 +292,10 @@ function fetchWeatherData() {
           tempMax: forecast.daily[0].tempMax,
           textDay: forecast.daily[0].textDay,
           textNight: forecast.daily[0].textNight,
+          // New: full QWeather responses
+          updateTime: now.updateTime,
+          now: now.now,
+          daily: forecast.daily,
         });
       } else {
         resolve(null);
@@ -1725,33 +1732,30 @@ function fetchWeather(url) {
 
 // 余杭今日天气
 app.get('/api/weather', async (req, res) => {
+  // Use the shared in-memory cache (1 min TTL) so multiple UI clients
+  // refreshing the home page don't each trigger a QWeather call. Worker
+  // (scripts/build_playlist_from_result.js) also reads from this endpoint
+  // so it shares the same cached response.
   try {
     const wcfg = getWeatherLocation();
-    const wkey = getWeatherConfig();
-    const base = `https://${wkey.host}`;
-    const loc = wcfg.locationId;
-    const [now, forecast] = await Promise.all([
-      fetchWeather(`${base}/v7/weather/now?location=${loc}&key=${wkey.apiKey}`),
-      fetchWeather(`${base}/v7/weather/7d?location=${loc}&key=${wkey.apiKey}`),
-    ]);
-
-    if (now.code !== '200' || forecast.code !== '200') {
-      return res.status(502).json({ error: 'weather API error' });
+    const data = await getWeather();
+    if (!data || !data.now || !Array.isArray(data.daily) || data.daily.length < 1) {
+      return res.status(502).json({ error: 'weather unavailable' });
     }
-
-    const today = forecast.daily[0];
+    const today = data.daily[0];
+    const tomorrow = data.daily[1] || today;
     res.json({
       city: wcfg.locationName,
       adm1: wcfg.adm1,
       adm2: wcfg.adm2,
-      updateTime: now.updateTime,
+      updateTime: data.updateTime,
       now: {
-        temp: now.now.temp,
-        feelsLike: now.now.feelsLike,
-        text: now.now.text,
-        humidity: now.now.humidity,
-        windDir: now.now.windDir,
-        windScale: now.now.windScale,
+        temp: data.now.temp,
+        feelsLike: data.now.feelsLike,
+        text: data.now.text,
+        humidity: data.now.humidity,
+        windDir: data.now.windDir,
+        windScale: data.now.windScale,
       },
       today: {
         date: today.fxDate,
@@ -1762,6 +1766,17 @@ app.get('/api/weather', async (req, res) => {
         windDirDay: today.windDirDay,
         windScaleDay: today.windScaleDay,
       },
+      tomorrow: {
+        date: tomorrow.fxDate,
+        tempMax: tomorrow.tempMax,
+        tempMin: tomorrow.tempMin,
+        textDay: tomorrow.textDay,
+        textNight: tomorrow.textNight,
+      },
+      // Worker needs daily[0..1] for prompt templates; return the whole
+      // array (small JSON, ~7 entries × ~10 fields) so the worker doesn't
+      // need a separate endpoint.
+      daily: data.daily,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
