@@ -1,0 +1,48 @@
+<!--
+  Shared top navigation. Include via EJS partial system: see
+  the README section "Shared nav" for usage. Active state is
+  auto-detected from window.location.pathname on the client, so no
+  server-side state is required.
+-->
+<style>
+  .top-nav {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 16px; padding: 8px 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .top-nav .nav-home {
+    margin-right: auto; font-weight: 500; color: var(--text);
+    text-decoration: none; font-size: 13px;
+  }
+  .top-nav .nav-home:hover { color: var(--accent); }
+  .top-nav .nav-link {
+    font-size: 12px; padding: 5px 12px;
+    border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-dim); text-decoration: none;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .top-nav .nav-link:hover { border-color: var(--accent); color: var(--accent); }
+  .top-nav .nav-link.active {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(34, 197, 94, 0.08);
+  }
+</style>
+
+<nav class="top-nav">
+  <a href="/" class="nav-home">🎧 192电台</a>
+  <a href="/admin/dj" class="nav-link" data-nav="admin">🎛 92DJ</a>
+  <a href="/library"   class="nav-link" data-nav="library">📀 曲目库</a>
+  <a href="/temps"     class="nav-link" data-nav="temps">🌡 温湿度</a>
+  <a href="/log"       class="nav-link" data-nav="log">📋 日志</a>
+</nav>
+<script>
+  // Mark the current page's nav link as active. The first path segment
+  // (e.g. /admin/dj → "admin", /temps → "temps", / → "") determines the
+  // active state. Falls back to "" for home (no other link active).
+  (function() {
+    var seg = window.location.pathname.split('/').filter(Boolean)[0] || '';
+    var link = document.querySelector('.top-nav .nav-link[data-nav="' + seg + '"]');
+    if (link) link.classList.add('active');
+  })();
+</script>

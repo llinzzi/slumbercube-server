@@ -119,13 +119,8 @@
 </head>
 <body>
 <div class="container">
-  <div class="nav">
-    <a href="/">← 电台首页</a>
-    <a href="/admin/dj">🎛 92DJ</a>
-    <a href="/library">📀 曲目库</a>
-    <a href="/log">📋 日志</a>
-  </div>
-  <h1>🌡️ 温湿度图表 <small id="subtitle">按 IP 标识设备 · 跟 /log 一致</small></h1>
+<%- include("partials/_nav") %>
+<h1>🌡️ 温湿度图表 <small id="subtitle">按 IP 标识设备 · 跟 /log 一致</small></h1>
 
   <div class="layout">
     <!-- 左：设备面板（按 IP，跟 log 一致） -->

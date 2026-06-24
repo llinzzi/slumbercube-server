@@ -308,23 +308,6 @@
     .device-select:hover { border-color: var(--accent); }
     .device-select option { background: var(--surface2); color: var(--text); }
 
-    /* Top nav */
-    .top-nav {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-    .nav-link {
-      font-size: 11px;
-      padding: 4px 10px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--text-dim);
-      text-decoration: none;
-      transition: all 0.15s;
-    }
-    .nav-link:hover { border-color: var(--accent); color: var(--accent); }
   </style>
 </head>
 <body>
@@ -332,13 +315,8 @@
 
 <h1>🎧 <span>192电台</span></h1>
 
-<div class="top-nav">
-  <a href="/admin/dj" class="nav-link">🎛 92DJ</a>
-  <a href="/library" class="nav-link">📀 曲目库</a>
-  <a href="/temps" class="nav-link">🌡 温湿度</a>
-  <a href="/log" class="nav-link">📋 日志</a>
-</div>
 
+<%- include("partials/_nav") %>
 <!-- Weather -->
 <div class="weather-card" id="weatherCard">
   <div class="weather-left">

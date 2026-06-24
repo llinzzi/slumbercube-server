@@ -35,8 +35,6 @@
     }
     h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
     .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
-    .back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
-    .back:hover { color: var(--accent); }
 
     .card {
       background: var(--surface);
@@ -321,9 +319,9 @@
 </style>
 </head>
 <body>
-  <a href="/" class="back">← 返回电台首页</a>
-  <h1 style="margin-top: 8px;">🎧 92DJ</h1>
-  <div class="subtitle">192电台 的多主持人播报控制台</div>
+  <h1 style="margin: 0 0 4px;">🎧 92DJ</h1>
+  <div class="subtitle" style="margin-bottom: 16px;">192电台 的多主持人播报控制台</div>
+  <%- include("partials/_nav") %>
 
   <!-- ====== 1. 当前状态 ====== -->
   <div class="card">
