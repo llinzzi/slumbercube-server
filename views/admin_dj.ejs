@@ -970,22 +970,14 @@
                 <!-- 右列：LLM 详情 -->
                 <div>
                   <div class="meta" style="font-weight:600;margin-bottom:6px;">🤖 LLM 详情</div>
-                  <details open style="margin-bottom:6px;">
-                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">📤 System Prompt</summary>
-                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.system || '(未保存)')}</pre>
-                  </details>
-                  <details open style="margin-bottom:6px;">
-                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">💬 User Prompt（${(e.prompt || '').length} 字）</summary>
-                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.prompt || '')}</pre>
-                  </details>
-                  <details open style="margin-bottom:6px;">
-                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">📥 Raw Response</summary>
-                    <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.response || '')}</pre>
-                  </details>
-                  <details open style="margin-bottom:6px;">
-                    <summary style="cursor:pointer;color:var(--text-dim);font-size:11px;padding:3px 0;">🐛 原始 HTTP 请求</summary>
-                    <pre style="background:var(--bg);border:1px solid var(--warn);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;margin:0;">${escapeHtml(e.http_request || '(未保存 — 旧版 build_playlist 未记录)')}</pre>
-                  </details>
+                  <div class="meta" style="margin:6px 0 2px;">📤 System Prompt</div>
+                  <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.system || '(未保存)')}</pre>
+                  <div class="meta" style="margin:6px 0 2px;">💬 User Prompt（${(e.prompt || '').length} 字）</div>
+                  <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.prompt || '')}</pre>
+                  <div class="meta" style="margin:6px 0 2px;">📥 Raw Response</div>
+                  <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.response || '')}</pre>
+                  <div class="meta" style="margin:6px 0 2px;">🐛 原始 HTTP 请求</div>
+                  <pre style="background:var(--bg);border:1px solid var(--warn);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0;">${escapeHtml(e.http_request || '(未保存 — 旧版 build_playlist 未记录)')}</pre>
                 </div>
               </div>
             </details>
