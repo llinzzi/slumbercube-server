@@ -12,3 +12,6 @@ worker.pid
 server.pid
 worker.pid
 config/device_readings.json
+
+# User-set weather location — runtime config, default is loaded in code
+config/weather.json

@@ -130,10 +130,34 @@ function execSyncSafe(cmd, timeoutMs = 15000) {
 
 const PORT = process.env.PORT || 3000;
 
-// Weather config — 和风天气, 余杭
+// Weather config — 和风天气. API key is hardcoded for now (read-only).
+// The location is mutable — defaults to 余杭 (101210106) but can be changed
+// at runtime via /api/weather/location. The change persists in
+// config/weather.json and is re-read on every fetch, so updates take
+// effect immediately without server restart.
 const WEATHER_KEY = 'YOUR_QWEATHER_API_KEY_HERE';
 const WEATHER_HOST = 'nn3aaqw4wr.re.qweatherapi.com';
-const WEATHER_LOCATION = '101210106'; // 余杭
+const WEATHER_CONFIG_FILE = path.join(__dirname, 'config', 'weather.json');
+
+function loadWeatherConfig() {
+  try {
+    if (fs.existsSync(WEATHER_CONFIG_FILE)) {
+      const d = JSON.parse(fs.readFileSync(WEATHER_CONFIG_FILE, 'utf-8'));
+      if (d.locationId && /^[0-9]{9,12}$/.test(d.locationId)) return d;
+    }
+  } catch (e) { console.error('loadWeatherConfig:', e.message); }
+  return { locationId: '101210106', locationName: '余杭', adm1: '浙江', adm2: '杭州' };
+}
+
+function saveWeatherConfig(cfg) {
+  fs.mkdirSync(path.dirname(WEATHER_CONFIG_FILE), { recursive: true });
+  fs.writeFileSync(WEATHER_CONFIG_FILE, JSON.stringify(cfg, null, 2));
+}
+
+// Re-read on every call so /api/weather/location POST takes effect immediately
+// for the next fetchWeatherData() invocation.
+function getWeatherLocation() { return loadWeatherConfig(); }
+
 const STATE_FILE = path.join(__dirname, '.radio_state.json');
 
 let currentVolume = 80; // 1-100
@@ -190,8 +214,10 @@ function saveState() {
 function fetchWeatherData() {
   return new Promise((resolve) => {
     const base = `https://${WEATHER_HOST}`;
-    const nowUrl = `${base}/v7/weather/now?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`;
-    const forecastUrl = `${base}/v7/weather/7d?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`;
+    // Re-read config each call so the location can be changed at runtime
+    const loc = getWeatherLocation().locationId;
+    const nowUrl = `${base}/v7/weather/now?location=${loc}&key=${WEATHER_KEY}`;
+    const forecastUrl = `${base}/v7/weather/7d?location=${loc}&key=${WEATHER_KEY}`;
     Promise.all([
       fetchWeather(nowUrl),
       fetchWeather(forecastUrl),
@@ -964,6 +990,7 @@ app.get('/library', (req, res) => {
 // bookmarks. Forward them to the new canonical paths instead of 404'ing.
 app.get('/history', (req, res) => res.redirect(301, '/library'));
 app.get('/log', function(req, res) { res.render('log'); });
+app.get('/settings', function(req, res) { res.render('settings'); });
 app.get('/api/log', function(req, res) {
   res.json({
     count: requestLog.length,
@@ -1623,9 +1650,11 @@ function fetchWeather(url) {
 app.get('/api/weather', async (req, res) => {
   try {
     const base = `https://${WEATHER_HOST}`;
+    const wcfg = getWeatherLocation();
+    const loc = wcfg.locationId;
     const [now, forecast] = await Promise.all([
-      fetchWeather(`${base}/v7/weather/now?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`),
-      fetchWeather(`${base}/v7/weather/7d?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`),
+      fetchWeather(`${base}/v7/weather/now?location=${loc}&key=${WEATHER_KEY}`),
+      fetchWeather(`${base}/v7/weather/7d?location=${loc}&key=${WEATHER_KEY}`),
     ]);
 
     if (now.code !== '200' || forecast.code !== '200') {
@@ -1634,7 +1663,9 @@ app.get('/api/weather', async (req, res) => {
 
     const today = forecast.daily[0];
     res.json({
-      city: '余杭',
+      city: wcfg.locationName,
+      adm1: wcfg.adm1,
+      adm2: wcfg.adm2,
       updateTime: now.updateTime,
       now: {
         temp: now.now.temp,
@@ -1656,6 +1687,62 @@ app.get('/api/weather', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------
+// Weather location settings
+// ---------------------------------------------------------------
+// GET current selected location
+app.get('/api/weather/location', (req, res) => {
+  const wcfg = getWeatherLocation();
+  res.json(wcfg);
+});
+
+// POST — set the location. Body: { locationId, locationName, adm1, adm2 }.
+// locationId is the 9-digit QWeather city code (validated to be all digits).
+app.post('/api/weather/location', express.json(), (req, res) => {
+  const { locationId, locationName, adm1, adm2 } = req.body || {};
+  if (!locationId || !/^[0-9]{9,12}$/.test(String(locationId))) {
+    return res.status(400).json({ error: 'invalid locationId (need 9–12 digit QWeather code)' });
+  }
+  if (!locationName) {
+    return res.status(400).json({ error: 'locationName required' });
+  }
+  const cfg = { locationId: String(locationId), locationName, adm1: adm1 || '', adm2: adm2 || '' };
+  saveWeatherConfig(cfg);
+  // Bust weather cache so next fetch uses new location
+  _weatherCache = null;
+  _weatherCacheTime = 0;
+  console.log(`[weather] location set to ${adm1}/${adm2}/${locationName} (${locationId})`);
+  res.json({ ok: true, ...cfg });
+});
+
+// GET — search QWeather for cities/districts. Query: ?q=余杭
+// Uses QWeather's GeoAPI: /geo/v2/city/lookup?location=<q>&range=cn
+app.get('/api/weather/lookup', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json({ locations: [] });
+  if (q.length > 30) return res.status(400).json({ error: 'query too long' });
+  try {
+    const url = `https://${WEATHER_HOST}/geo/v2/city/lookup?location=${encodeURIComponent(q)}&range=cn&key=${WEATHER_KEY}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    if (j.code !== '200') {
+      return res.status(502).json({ error: 'lookup failed', code: j.code });
+    }
+    const locations = (j.location || []).map(l => ({
+      id: l.id,
+      name: l.name,
+      adm1: l.adm1,
+      adm2: l.adm2,
+      country: l.country,
+      lat: l.lat,
+      lon: l.lon,
+    }));
+    res.json({ locations });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
