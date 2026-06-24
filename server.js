@@ -130,13 +130,66 @@ function execSyncSafe(cmd, timeoutMs = 15000) {
 
 const PORT = process.env.PORT || 3000;
 
-// Weather config — 和风天气. API key is hardcoded for now (read-only).
-// The location is mutable — defaults to 余杭 (101210106) but can be changed
-// at runtime via /api/weather/location. The change persists in
-// config/weather.json and is re-read on every fetch, so updates take
-// effect immediately without server restart.
-const WEATHER_KEY = 'YOUR_QWEATHER_API_KEY_HERE';
-const WEATHER_HOST = 'nn3aaqw4wr.re.qweatherapi.com';
+// ---------------------------------------------------------------
+// Central runtime settings — weather key/host, minimax key/base/model,
+// TTS voice, library dir. Persisted to config/settings.json and
+// modifiable at runtime via /api/settings. On-disk values take
+// precedence over the hardcoded defaults below; missing fields
+// fall back to defaults. Reload is forced (clear require cache) by
+// reloadSettings() after a POST so subsequent calls see the new values.
+// ---------------------------------------------------------------
+const SETTINGS_FILE = path.join(__dirname, 'config', 'settings.json');
+
+const DEFAULT_SETTINGS = {
+  weather: {
+    apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
+    host:   'nn3aaqw4wr.re.qweatherapi.com',
+  },
+  minimax: {
+    apiKey:         '',                                  // user must supply
+    anthropicBase:  'https://api.minimaxi.com/anthropic/v1/messages',
+    anthropicModel: 'MiniMax-M3',
+    ttsBase:        'https://api.minimaxi.com/v1/t2a_v2',
+    ttsModel:       'speech-02-turbo',
+    ttsVoiceId:     'male-qn-qingse',
+  },
+  library: {
+    stationsDir: '/home/zulin/Music/网易云收藏',
+  },
+};
+
+let _settings = null;
+function loadSettings() {
+  if (_settings) return _settings;
+  // Start from defaults
+  _settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const d = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+      // Shallow-merge each top-level group so old partial files still work
+      for (const k of Object.keys(_settings)) {
+        if (d[k] && typeof d[k] === 'object') Object.assign(_settings[k], d[k]);
+      }
+    }
+  } catch (e) { console.error('loadSettings:', e.message); }
+  return _settings;
+}
+
+function saveSettings(next) {
+  fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(next, null, 2));
+  _settings = next;
+  // Bust caches that depend on settings
+  _weatherCache = null;
+  _weatherCacheTime = 0;
+}
+
+// Legacy alias used by fetchWeatherData — returns { apiKey, host }.
+function getWeatherConfig() {
+  const s = loadSettings().weather;
+  return { apiKey: s.apiKey, host: s.host };
+}
+
 const WEATHER_CONFIG_FILE = path.join(__dirname, 'config', 'weather.json');
 
 function loadWeatherConfig() {
@@ -213,11 +266,12 @@ function saveState() {
 
 function fetchWeatherData() {
   return new Promise((resolve) => {
-    const base = `https://${WEATHER_HOST}`;
+    const wcfg = getWeatherConfig();
+    const base = `https://${wcfg.host}`;
     // Re-read config each call so the location can be changed at runtime
     const loc = getWeatherLocation().locationId;
-    const nowUrl = `${base}/v7/weather/now?location=${loc}&key=${WEATHER_KEY}`;
-    const forecastUrl = `${base}/v7/weather/7d?location=${loc}&key=${WEATHER_KEY}`;
+    const nowUrl = `${base}/v7/weather/now?location=${loc}&key=${wcfg.apiKey}`;
+    const forecastUrl = `${base}/v7/weather/7d?location=${loc}&key=${wcfg.apiKey}`;
     Promise.all([
       fetchWeather(nowUrl),
       fetchWeather(forecastUrl),
@@ -364,7 +418,14 @@ function synthesizeIntro(text, songName = '未知') {
 // RadioStation — one folder of MP3s
 // ---------------------------------------------------------------
 const LOCAL_METAINT = 8192;
+// Stations dir is set in loadSettings().library.stationsDir (see below).
+// Helper for live re-reads after /api/settings POST.
+function getStationsDir() { return loadSettings().library.stationsDir; }
+
+// Fallback const for startup-time resolution. Settings changes at runtime
+// won't affect this const — but getStationsDir() reads live value.
 const STATIONS_DIR = process.env.STATIONS_DIR || '/home/zulin/Music/网易云收藏';
+
 
 // Recursively walk a directory, returning absolute paths of all .mp3 files.
 // Skips macOS resource-fork / metadata files (._* prefix) and any dotfile.
@@ -1649,12 +1710,13 @@ function fetchWeather(url) {
 // 余杭今日天气
 app.get('/api/weather', async (req, res) => {
   try {
-    const base = `https://${WEATHER_HOST}`;
     const wcfg = getWeatherLocation();
+    const wkey = getWeatherConfig();
+    const base = `https://${wkey.host}`;
     const loc = wcfg.locationId;
     const [now, forecast] = await Promise.all([
-      fetchWeather(`${base}/v7/weather/now?location=${loc}&key=${WEATHER_KEY}`),
-      fetchWeather(`${base}/v7/weather/7d?location=${loc}&key=${WEATHER_KEY}`),
+      fetchWeather(`${base}/v7/weather/now?location=${loc}&key=${wkey.apiKey}`),
+      fetchWeather(`${base}/v7/weather/7d?location=${loc}&key=${wkey.apiKey}`),
     ]);
 
     if (now.code !== '200' || forecast.code !== '200') {
@@ -1725,7 +1787,8 @@ app.get('/api/weather/lookup', async (req, res) => {
   if (!q) return res.json({ locations: [] });
   if (q.length > 30) return res.status(400).json({ error: 'query too long' });
   try {
-    const url = `https://${WEATHER_HOST}/geo/v2/city/lookup?location=${encodeURIComponent(q)}&range=cn&key=${WEATHER_KEY}`;
+    const wkey = getWeatherConfig();
+    const url = `https://${wkey.host}/geo/v2/city/lookup?location=${encodeURIComponent(q)}&range=cn&key=${wkey.apiKey}`;
     const r = await fetch(url);
     const j = await r.json();
     if (j.code !== '200') {
@@ -1744,6 +1807,100 @@ app.get('/api/weather/lookup', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ---------------------------------------------------------------
+// Central settings (weather key/host, minimax token + TTS, library dir)
+// ---------------------------------------------------------------
+// GET current settings. Sensitive fields (apiKey) are returned as
+// { set: true/false, preview: 'abcd...wxyz' } so the UI can show
+// "configured / not configured" + a preview, but never the full key.
+function maskKey(k) {
+  if (!k) return { set: false, preview: '' };
+  if (k.length <= 12) return { set: true, preview: '***' };
+  return { set: true, preview: k.slice(0, 6) + '…' + k.slice(-4) };
+}
+
+app.get('/api/settings', (req, res) => {
+  const s = loadSettings();
+  res.json({
+    weather: {
+      host: s.weather.host,
+      apiKey: maskKey(s.weather.apiKey),
+    },
+    minimax: {
+      apiKey: maskKey(s.minimax.apiKey),
+      anthropicBase: s.minimax.anthropicBase,
+      anthropicModel: s.minimax.anthropicModel,
+      ttsBase: s.minimax.ttsBase,
+      ttsModel: s.minimax.ttsModel,
+      ttsVoiceId: s.minimax.ttsVoiceId,
+    },
+    library: {
+      stationsDir: s.library.stationsDir,
+    },
+  });
+});
+
+// POST — update one or more settings groups. Body shape mirrors GET but
+// accepts the full apiKey (empty string clears it).
+app.post('/api/settings', express.json(), (req, res) => {
+  const body = req.body || {};
+  const current = loadSettings();
+  const next = JSON.parse(JSON.stringify(current));
+  if (body.weather && typeof body.weather === 'object') {
+    if (typeof body.weather.host === 'string' && body.weather.host.length) {
+      next.weather.host = body.weather.host;
+    }
+    if (typeof body.weather.apiKey === 'string') {
+      // Empty string clears; anything else replaces. Allow setting the
+      // same key to its masked form — strip that case.
+      const k = body.weather.apiKey;
+      if (k === '' || k.includes('…')) {
+        // explicit clear or no-op (masked value sent from UI)
+        if (k === '') next.weather.apiKey = '';
+      } else {
+        next.weather.apiKey = k;
+      }
+    }
+  }
+  if (body.minimax && typeof body.minimax === 'object') {
+    if (typeof body.minimax.apiKey === 'string') {
+      const k = body.minimax.apiKey;
+      if (k === '' || k.includes('…')) {
+        if (k === '') next.minimax.apiKey = '';
+      } else {
+        next.minimax.apiKey = k;
+      }
+    }
+    for (const f of ['anthropicBase', 'anthropicModel', 'ttsBase', 'ttsModel', 'ttsVoiceId']) {
+      if (typeof body.minimax[f] === 'string' && body.minimax[f].length) {
+        next.minimax[f] = body.minimax[f];
+      }
+    }
+  }
+  if (body.library && typeof body.library === 'object') {
+    if (typeof body.library.stationsDir === 'string' && body.library.stationsDir.length) {
+      next.library.stationsDir = body.library.stationsDir;
+    }
+  }
+  saveSettings(next);
+  // Return masked view (same shape as GET)
+  res.json({
+    ok: true,
+    settings: {
+      weather: { host: next.weather.host, apiKey: maskKey(next.weather.apiKey) },
+      minimax: {
+        apiKey: maskKey(next.minimax.apiKey),
+        anthropicBase: next.minimax.anthropicBase,
+        anthropicModel: next.minimax.anthropicModel,
+        ttsBase: next.minimax.ttsBase,
+        ttsModel: next.minimax.ttsModel,
+        ttsVoiceId: next.minimax.ttsVoiceId,
+      },
+      library: { stationsDir: next.library.stationsDir },
+    },
+  });
 });
 
 // ---------------------------------------------------------------

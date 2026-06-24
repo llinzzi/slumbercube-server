@@ -32,6 +32,54 @@ const zlib = require('zlib');
 const { exec } = require('child_process');
 const os = require('os');
 
+// ---------------------------------------------------------------
+// Central runtime settings — shared with server.js. Read from
+// config/settings.json, fall back to hardcoded defaults if missing.
+// Returns deep-cloned DEFAULT_SETTINGS so callers can mutate freely.
+// ---------------------------------------------------------------
+const SETTINGS_FILE = path.join(__dirname, '..', 'config', 'settings.json');
+const DEFAULT_SETTINGS = {
+  weather: {
+    apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
+    host:   'nn3aaqw4wr.re.qweatherapi.com',
+  },
+  minimax: {
+    apiKey:         '',
+    anthropicBase:  'https://api.minimaxi.com/anthropic/v1/messages',
+    anthropicModel: 'MiniMax-M3',
+    ttsBase:        'https://api.minimaxi.com/v1/t2a_v2',
+    ttsModel:       'speech-02-turbo',
+    ttsVoiceId:     'male-qn-qingse',
+  },
+  library: {
+    stationsDir: '/home/zulin/Music/网易云收藏',
+  },
+};
+
+function loadSettings() {
+  const out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const d = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+      for (const k of Object.keys(out)) {
+        if (d[k] && typeof d[k] === 'object') Object.assign(out[k], d[k]);
+      }
+    }
+  } catch (e) { /* ignore — use defaults */ }
+  return out;
+}
+
+const SETTINGS = loadSettings();
+const WEATHER_KEY       = SETTINGS.weather.apiKey;
+const WEATHER_HOST      = SETTINGS.weather.host;
+const WEATHER_LOCATION  = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'weather.json'), 'utf-8')).locationId; } catch { return '101210106'; } })();
+const ANTHROPIC_KEY     = SETTINGS.minimax.apiKey || (() => { try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf-8')).api_key; } catch { return null; } })();
+const ANTHROPIC_BASE    = SETTINGS.minimax.anthropicBase;
+const ANTHROPIC_MODEL   = SETTINGS.minimax.anthropicModel;
+const TTS_BASE          = SETTINGS.minimax.ttsBase;
+const TTS_MODEL         = SETTINGS.minimax.ttsModel;
+const TTS_VOICE_ID      = SETTINGS.minimax.ttsVoiceId;
+
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const PLAYLIST_ROOT = path.join(PROJECT_ROOT, '.radio_playlist');
 const PLAYLIST_LINK = PLAYLIST_ROOT; // current.json lives directly here
@@ -176,14 +224,7 @@ function getSceneLabel(sceneHints, sceneKey) {
 // (strips newlines, truncates around think tags, etc) — for our
 // intros-by-batch use case the raw API is much more reliable.
 // ----------------------------------------------------------------
-const ANTHROPIC_BASE = 'https://api.minimaxi.com/anthropic/v1/messages';
-const ANTHROPIC_KEY = (() => {
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf8'));
-    return cfg.api_key || null;
-  } catch { return null; }
-})();
-const ANTHROPIC_MODEL = 'MiniMax-M3';
+
 
 // ---------------------------------------------------------------
 // Qweather 7d — only needed for ${weatherToday}/${weatherTomorrow}
@@ -192,9 +233,7 @@ const ANTHROPIC_MODEL = 'MiniMax-M3';
 // because build_playlist_from_result.js is run standalone and
 // importing server.js would drag in Express + Express state.
 // ---------------------------------------------------------------
-const WEATHER_HOST = 'nn3aaqw4wr.re.qweatherapi.com';
-const WEATHER_KEY  = 'YOUR_QWEATHER_API_KEY_HERE';
-const WEATHER_LOCATION = '101210106';
+
 
 function fetchWeather7d() {
   return new Promise((resolve) => {
@@ -554,9 +593,7 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
 // The response is a JSON envelope {"data": {"audio": "<hex>"}, ...}
 // where `audio` is hex-encoded MP3 bytes (16kHz mono by default).
 // ----------------------------------------------------------------
-const TTS_BASE = 'https://api.minimaxi.com/v1/t2a_v2';
-const TTS_MODEL = 'speech-02-turbo';
-const TTS_VOICE_ID = 'male-qn-qingse';  // Chinese male news-anchor voice; available on TTS v2
+
 
 async function ttsApi(text, outPath, timeoutMs = 30000) {
   if (!ANTHROPIC_KEY) {

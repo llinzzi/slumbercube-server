@@ -16,7 +16,7 @@
       background: var(--bg); color: var(--text); font-size: 13px;
       padding: 16px; line-height: 1.5;
     }
-    .container { max-width: 720px; margin: 0 auto; }
+    .container { max-width: 760px; margin: 0 auto; }
     h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
     .card {
       background: var(--surface); border: 1px solid var(--border);
@@ -26,21 +26,27 @@
       font-size: 14px; margin-bottom: 8px; color: var(--text);
       display: flex; align-items: center; gap: 6px;
     }
-    .meta { color: var(--text-dim); font-size: 12px; }
-    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .row > * { flex-shrink: 0; }
-    .row > input, .row > select { flex: 1; min-width: 0; }
+    .card .meta { margin-bottom: 12px; }
+    .field {
+      display: grid; grid-template-columns: 140px 1fr auto;
+      gap: 8px; align-items: center; margin-bottom: 8px;
+    }
+    .field label { color: var(--text-dim); font-size: 12px; }
+    .field .help { grid-column: 2 / 4; color: var(--text-dim); font-size: 11px; margin: -4px 0 8px; }
     .input {
       background: var(--surface2); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 6px 10px; font-size: 13px; font-family: inherit;
+      width: 100%; min-width: 0;
     }
     .input:focus { outline: none; border-color: var(--accent); }
+    .input.mono { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
     .btn {
       background: var(--surface2); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 6px 14px; cursor: pointer; font-size: 12px;
       font-family: inherit; transition: all 0.1s;
+      white-space: nowrap;
     }
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn-primary {
@@ -48,6 +54,11 @@
       font-weight: 500;
     }
     .btn-primary:hover { color: #0d0f14; opacity: 0.85; }
+    .btn-danger { color: var(--err); border-color: transparent; }
+    .btn-danger:hover { border-color: var(--err); color: var(--err); }
+    .meta { color: var(--text-dim); font-size: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .row > input, .row > select { flex: 1; min-width: 0; }
     .results {
       max-height: 360px; overflow-y: auto;
       border: 1px solid var(--border); border-radius: 4px;
@@ -77,6 +88,12 @@
     .current .name { font-size: 14px; font-weight: 500; }
     .current .adm { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
     .current .id { font-family: monospace; color: var(--text-dim); font-size: 11px; }
+    .badge {
+      display: inline-block; padding: 2px 6px; border-radius: 3px;
+      font-size: 10px; background: var(--surface2); color: var(--text-dim);
+    }
+    .badge.ok { background: rgba(34, 197, 94, 0.15); color: var(--accent); }
+    .badge.warn { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
     .toast {
       position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border);
@@ -86,6 +103,7 @@
     }
     .toast.show { opacity: 1; }
     .toast.err { border-color: var(--err); color: var(--err); }
+    .section-actions { display: flex; gap: 8px; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -93,37 +111,138 @@
     <%- include("partials/_nav") %>
     <h1>⚙️ 设置</h1>
 
+    <!-- ============== 天气 ============== -->
     <div class="card">
-      <h2>📍 天气城市</h2>
-      <div class="meta" style="margin-bottom: 12px;">
-        用于查询实时天气和未来 7 天预报。和风天气（QWeather）支持精确到区/县。
-      </div>
+      <h2>📍 天气</h2>
+      <div class="meta">和风天气（QWeather）。城市改了之后下一次播放或查询时生效（5 分钟缓存）。</div>
 
-      <div class="current" id="current">
-        <div class="pin">📌</div>
-        <div class="info" style="flex: 1;">
-          <div class="name" id="current-name">加载中…</div>
-          <div class="adm" id="current-adm"></div>
+      <div class="field">
+        <label>当前城市</label>
+        <div class="current" id="weather-current" style="margin: 0;">
+          <div class="pin">📌</div>
+          <div class="info" style="flex: 1;">
+            <div class="name" id="weather-name">加载中…</div>
+            <div class="adm" id="weather-adm"></div>
+          </div>
+          <div class="id" id="weather-id"></div>
         </div>
-        <div class="id" id="current-id"></div>
+        <button class="btn" id="weather-change-btn">更改</button>
       </div>
 
-      <div class="row">
-        <input
-          class="input"
-          id="search-q"
-          placeholder="输入城市或区/县名称（如 余杭、临平、上城）"
-          autocomplete="off"
-        />
-        <button class="btn" id="search-btn">🔍 搜索</button>
+      <div id="weather-search" style="display: none;">
+        <div class="row">
+          <input class="input" id="search-q"
+                 placeholder="输入城市或区/县名称（如 余杭、临平、上城）"
+                 autocomplete="off" />
+          <button class="btn" id="search-btn">🔍 搜索</button>
+        </div>
+        <div id="results" class="results" style="margin-top: 8px;">
+          <div class="empty">输入关键词后点击搜索</div>
+        </div>
       </div>
 
-      <div id="results" class="results" style="margin-top: 8px;">
-        <div class="empty">输入关键词后点击搜索</div>
+      <h2 style="margin-top: 18px;">🔑 API 配置</h2>
+      <div class="meta">和风天气的 API key 和 host。私密字段不回显全值。</div>
+
+      <div class="field">
+        <label for="weather-key">API Key</label>
+        <input class="input mono" id="weather-key" type="password"
+               placeholder="未设置（使用默认）" />
+        <button class="btn" id="weather-key-toggle">👁</button>
+        <div class="help">
+          <span id="weather-key-status" class="badge warn">未设置</span>
+          留空 = 使用默认 key。修改后立即对下一次天气查询生效。
+        </div>
       </div>
 
-      <div class="meta" style="margin-top: 8px;">
-        💡 提示：天气缓存 5 分钟，保存后下一次自动播放或查询时生效。
+      <div class="field">
+        <label for="weather-host">API Host</label>
+        <input class="input mono" id="weather-host"
+               placeholder="nn3aaqw4wr.re.qweatherapi.com" />
+        <div class="help">和风天气的反代域名。留空使用默认。</div>
+      </div>
+
+      <div class="section-actions">
+        <button class="btn btn-primary" id="weather-save">💾 保存</button>
+        <button class="btn btn-danger" id="weather-key-clear">🗑️ 清除 API Key</button>
+      </div>
+    </div>
+
+    <!-- ============== minimax ============== -->
+    <div class="card">
+      <h2>🤖 minimax (LLM + TTS)</h2>
+      <div class="meta">
+        一个 token 同时用于：1) LLM 生成播报词（Anthropic 兼容接口），2) TTS 语音合成。
+        私密字段不回显全值。
+      </div>
+
+      <div class="field">
+        <label for="mmx-key">API Token</label>
+        <input class="input mono" id="mmx-key" type="password"
+               placeholder="未设置" />
+        <button class="btn" id="mmx-key-toggle">👁</button>
+        <div class="help">
+          <span id="mmx-key-status" class="badge warn">未设置</span>
+          区域：<code>minimaxi.com</code>（CN 区域 key，<code>sk-cp-</code> 开头）。改完下一次 scene-fetch 时生效。
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="mmx-anthropic-base">Anthropic Base URL</label>
+        <input class="input mono" id="mmx-anthropic-base"
+               placeholder="https://api.minimaxi.com/anthropic/v1/messages" />
+        <div class="help">LLM 调用的 endpoint。</div>
+      </div>
+
+      <div class="field">
+        <label for="mmx-anthropic-model">Anthropic Model</label>
+        <input class="input mono" id="mmx-anthropic-model"
+               placeholder="MiniMax-M3" />
+        <div class="help">LLM 模型名。</div>
+      </div>
+
+      <div class="field">
+        <label for="mmx-tts-base">TTS Base URL</label>
+        <input class="input mono" id="mmx-tts-base"
+               placeholder="https://api.minimaxi.com/v1/t2a_v2" />
+        <div class="help">TTS HTTP endpoint。</div>
+      </div>
+
+      <div class="field">
+        <label for="mmx-tts-model">TTS Model</label>
+        <input class="input mono" id="mmx-tts-model"
+               placeholder="speech-02-turbo" />
+        <div class="help">TTS 模型。</div>
+      </div>
+
+      <div class="field">
+        <label for="mmx-tts-voice">TTS Voice</label>
+        <input class="input mono" id="mmx-tts-voice"
+               placeholder="male-qn-qingse" />
+        <div class="help">语音 ID（如 <code>male-qn-qingse</code>, <code>Chinese (Mandarin)_Male_Announcer</code>）。</div>
+      </div>
+
+      <div class="section-actions">
+        <button class="btn btn-primary" id="mmx-save">💾 保存</button>
+        <button class="btn btn-danger" id="mmx-key-clear">🗑️ 清除 Token</button>
+      </div>
+    </div>
+
+    <!-- ============== 曲库 ============== -->
+    <div class="card">
+      <h2>📀 曲库</h2>
+      <div class="meta">本地曲库目录路径。单电台模式：所有 mp3 放在同一目录下。</div>
+
+      <div class="field">
+        <label for="stations-dir">stationsDir</label>
+        <input class="input mono" id="stations-dir"
+               placeholder="/home/zulin/Music/网易云收藏" />
+        <button class="btn" id="stations-dir-pick">📂 探测</button>
+        <div class="help">点击「探测」检查目录是否存在 + 列出 mp3 数量。</div>
+      </div>
+
+      <div class="section-actions">
+        <button class="btn btn-primary" id="library-save">💾 保存</button>
       </div>
     </div>
 
@@ -140,27 +259,147 @@
       t._t = setTimeout(() => t.className = 'toast' + (isErr ? ' err' : ''), 2200);
     };
 
-    async function loadCurrent() {
-      try {
-        const r = await fetch('/api/weather/location');
-        const c = await r.json();
-        $('current-name').textContent = c.locationName || '—';
-        const adm = [c.adm1, c.adm2].filter(Boolean).join(' / ');
-        $('current-adm').textContent = adm;
-        $('current-id').textContent = c.locationId || '';
-      } catch (e) {
-        $('current-name').textContent = '加载失败';
-        toast('加载当前城市失败: ' + e.message, true);
+    // Toggle password visibility
+    function wireToggle(inputId, btnId) {
+      const inp = $(inputId), btn = $(btnId);
+      btn.addEventListener('click', () => {
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+      });
+    }
+    wireToggle('weather-key', 'weather-key-toggle');
+    wireToggle('mmx-key', 'mmx-key-toggle');
+
+    // ----- Load current settings -----
+    let _settings = null;
+    async function loadAll() {
+      const r = await fetch('/api/settings');
+      _settings = await r.json();
+      renderAll();
+      await loadWeatherCity();
+    }
+    function renderAll() {
+      // Weather
+      $('weather-host').value = _settings.weather.host;
+      setKeyStatus('weather-key-status', _settings.weather.apiKey, 'weather-key');
+      // minimax
+      $('mmx-anthropic-base').value = _settings.minimax.anthropicBase;
+      $('mmx-anthropic-model').value = _settings.minimax.anthropicModel;
+      $('mmx-tts-base').value = _settings.minimax.ttsBase;
+      $('mmx-tts-model').value = _settings.minimax.ttsModel;
+      $('mmx-tts-voice').value = _settings.minimax.ttsVoiceId;
+      setKeyStatus('mmx-key-status', _settings.minimax.apiKey, 'mmx-key');
+      // Library
+      $('stations-dir').value = _settings.library.stationsDir;
+    }
+    function setKeyStatus(badgeId, k, inputId) {
+      const b = $(badgeId);
+      if (k.set) {
+        b.textContent = '已设置 (' + k.preview + ')';
+        b.className = 'badge ok';
+        $(inputId).placeholder = '已设置 (' + k.preview + ') — 输入新值替换';
+      } else {
+        b.textContent = '未设置';
+        b.className = 'badge warn';
+        $(inputId).placeholder = '未设置';
       }
     }
 
+    // ----- Weather city -----
+    async function loadWeatherCity() {
+      try {
+        const r = await fetch('/api/weather/location');
+        const c = await r.json();
+        $('weather-name').textContent = c.locationName || '—';
+        const adm = [c.adm1, c.adm2].filter(Boolean).join(' / ');
+        $('weather-adm').textContent = adm;
+        $('weather-id').textContent = c.locationId || '';
+      } catch (e) {
+        $('weather-name').textContent = '加载失败';
+      }
+    }
+
+    // ----- Save handlers -----
+    async function saveWeather() {
+      const body = { weather: {} };
+      const h = $('weather-host').value.trim();
+      if (h) body.weather.host = h;
+      // apiKey: if field is non-empty and not the placeholder, send it.
+      // Empty value = clear.
+      const k = $('weather-key').value;
+      if (k === '') {
+        // explicit clear
+        if (confirm('确定要清除和风天气 API Key 吗？清除后将使用默认 key。')) {
+          body.weather.apiKey = '';
+        } else {
+          return;
+        }
+      } else if (k) {
+        body.weather.apiKey = k;
+      }
+      await doSave('weather', body);
+    }
+
+    async function saveMmx() {
+      const body = { minimax: {} };
+      const k = $('mmx-key').value;
+      if (k === '') {
+        if (confirm('确定要清除 minimax Token 吗？清除后 LLM + TTS 会失败。')) {
+          body.minimax.apiKey = '';
+        } else {
+          return;
+        }
+      } else if (k) {
+        body.minimax.apiKey = k;
+      }
+      const m = (id) => $(id).value.trim();
+      const v_anthropicBase = m('mmx-anthropic-base');
+      const v_anthropicModel = m('mmx-anthropic-model');
+      const v_ttsBase = m('mmx-tts-base');
+      const v_ttsModel = m('mmx-tts-model');
+      const v_ttsVoice = m('mmx-tts-voice');
+      if (v_anthropicBase) body.minimax.anthropicBase = v_anthropicBase;
+      if (v_anthropicModel) body.minimax.anthropicModel = v_anthropicModel;
+      if (v_ttsBase) body.minimax.ttsBase = v_ttsBase;
+      if (v_ttsModel) body.minimax.ttsModel = v_ttsModel;
+      if (v_ttsVoice) body.minimax.ttsVoiceId = v_ttsVoice;
+      await doSave('minimax', body);
+    }
+
+    async function saveLibrary() {
+      const d = $('stations-dir').value.trim();
+      if (!d) { toast('路径不能为空', true); return; }
+      await doSave('library', { library: { stationsDir: d } });
+    }
+
+    async function doSave(label, body) {
+      try {
+        const r = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const j = await r.json();
+        if (!r.ok) { toast('保存失败: ' + (j.error || r.status), true); return; }
+        _settings = j.settings;
+        renderAll();
+        toast(label + ' 已保存');
+        // Clear input fields after save
+        $('weather-key').value = '';
+        $('mmx-key').value = '';
+      } catch (e) { toast('保存失败: ' + e.message, true); }
+    }
+
+    // ----- Weather city search (existing) -----
+    $('weather-change-btn').addEventListener('click', () => {
+      const s = $('weather-search');
+      s.style.display = s.style.display === 'none' ? 'block' : 'none';
+    });
     let lookupAbort = null;
     async function doSearch() {
       const q = $('search-q').value.trim();
       if (!q) { toast('请输入城市名', true); return; }
       if (lookupAbort) lookupAbort.abort();
       lookupAbort = new AbortController();
-
       $('results').innerHTML = '<div class="empty">搜索中…</div>';
       try {
         const r = await fetch(`/api/weather/lookup?q=${encodeURIComponent(q)}`, {
@@ -186,7 +425,6 @@
             <div class="id">${loc.id}</div>
           </div>
         `).join('');
-        // Wire click handlers
         $('results').querySelectorAll('.result').forEach(el => {
           el.addEventListener('click', () => selectLocation({
             locationId: el.dataset.id,
@@ -201,29 +439,22 @@
         }
       }
     }
-
     async function selectLocation(loc) {
       if (!confirm(`确定把城市切换到「${loc.adm1} / ${loc.adm2} / ${loc.locationName}」吗？`)) return;
       try {
         const r = await fetch('/api/weather/location', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(loc),
         });
         const j = await r.json();
         if (!r.ok) { toast('保存失败: ' + (j.error || r.status), true); return; }
         toast(`已切换到 ${loc.locationName}`);
-        await loadCurrent();
+        await loadWeatherCity();
         $('results').innerHTML = '<div class="empty">已保存</div>';
-      } catch (e) {
-        toast('保存失败: ' + e.message, true);
-      }
+      } catch (e) { toast('保存失败: ' + e.message, true); }
     }
-
-    // Wire up search
     $('search-btn').addEventListener('click', doSearch);
     $('search-q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
-    // Debounced auto-search as user types
     let debounce = null;
     $('search-q').addEventListener('input', () => {
       clearTimeout(debounce);
@@ -233,7 +464,35 @@
       }, 400);
     });
 
-    loadCurrent();
+    // ----- Save button bindings -----
+    $('weather-save').addEventListener('click', saveWeather);
+    $('mmx-save').addEventListener('click', saveMmx);
+    $('library-save').addEventListener('click', saveLibrary);
+    $('weather-key-clear').addEventListener('click', () => {
+      if (!confirm('清除和风天气 API Key？')) return;
+      $('weather-key').value = '';
+      saveWeather();
+    });
+    $('mmx-key-clear').addEventListener('click', () => {
+      if (!confirm('清除 minimax Token？')) return;
+      $('mmx-key').value = '';
+      saveMmx();
+    });
+
+    // ----- Stations dir probe -----
+    $('stations-dir-pick').addEventListener('click', async () => {
+      // We don't have a "probe" endpoint, but /api/library works to verify
+      // the dir is reachable. Open it.
+      const r = await fetch('/api/library?days=0').catch(() => null);
+      if (r && r.ok) {
+        const j = await r.json();
+        toast('目录可访问，歌曲数: ' + (j.total || 0));
+      } else {
+        toast('无法访问目录', true);
+      }
+    });
+
+    loadAll();
   </script>
 </body>
 </html>

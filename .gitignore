@@ -15,3 +15,6 @@ config/device_readings.json
 
 # User-set weather location — runtime config, default is loaded in code
 config/weather.json
+
+# Central runtime settings — contains API keys, per-host
+config/settings.json
