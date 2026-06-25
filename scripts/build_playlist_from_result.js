@@ -933,6 +933,11 @@ async function main() {
     time_of_day: scene,
     hour: new Date().getHours(),
     persona: null,
+    // Top-level name so /api/esp can return it without reaching into
+    // source_playlist. Falls back to NCM playlist name → "scene-<scene>"
+    // for older builds / generate_playlist path.
+    name: playlistName,
+    playlist_name: playlistName,
     source_playlist: { id: result.playlist_id, name: playlistName, scene },
     songs: playlist,
     current_index: 0,

@@ -1318,7 +1318,7 @@ app.get('/api/esp', async (req, res) => {
 
     return res.json({
       song: song.name,
-      name: 'Playlist Mode',
+      name: pl.playlist_name || pl.name || '192电台',
       url,
       volume: currentVolume,
       weather: respWeather,
@@ -1540,7 +1540,7 @@ app.get('/api/esp/:deviceId', async (req, res) => {
 
   res.json({
     song: song.name,
-    name: 'Playlist Mode',
+    name: pl.playlist_name || pl.name || '192电台',
     url,
     volume: currentVolume,
     weather: respWeather,
