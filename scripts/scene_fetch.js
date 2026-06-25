@@ -36,7 +36,7 @@ const path = require('path');
 
 const { neteaseSearchAndDownload, NETEASE_DOWNLOAD_DIR, setCurrentPlaylist } = require('./lib/netease_dl');
 const { loadOne } = require('./lib/scenes_index');
-const { searchScene, loadAllUsedPlaylistIds } = require('./scene_playlist_search');
+const { searchScene, loadAllUsedPlaylistIds, selectPlaylistWithLLM, loadSceneHistory } = require('./scene_playlist_search');
 const { adopt, isCrossSceneDuplicate } = require('./scene_playlist_adopt');
 const audit = require('./lib/scene_audit');
 
@@ -100,16 +100,41 @@ async function main() {
   });
 
   // 2. Search NCM for playlists
+  // Fetch today's/tomorrow's weather first so the LLM keyword generator
+  // can use it as context. /api/weather has a 1-min in-memory cache
+  // shared with the worker, so this is cheap.
+  let weatherToday = '', weatherTomorrow = '';
+  try {
+    const http = require('http');
+    const w = await new Promise((resolve, reject) => {
+      const req = http.get('http://127.0.0.1:3000/api/weather', { timeout: 5000 }, (res) => {
+        let d = ''; res.setEncoding('utf8');
+        res.on('data', c => d += c);
+        res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('weather timeout')); });
+    });
+    if (w && w.today) {
+      weatherToday = `${w.today.textDay || ''}${w.today.tempMin ? '，' + w.today.tempMin + '~' + w.today.tempMax + '°C' : ''}`.replace(/^，/, '');
+    }
+    if (w && w.tomorrow) {
+      weatherTomorrow = `${w.tomorrow.textDay || ''}${w.tomorrow.tempMin ? '，' + w.tomorrow.tempMin + '~' + w.tomorrow.tempMax + '°C' : ''}`.replace(/^，/, '');
+    }
+  } catch (e) {
+    log(`weather fetch failed (non-fatal): ${e.message.slice(0, 80)}`);
+  }
+
   let searchResult;
   try {
-    searchResult = await searchScene(sceneName);
+    searchResult = await searchScene(sceneName, { useLLM: true, weatherToday, weatherTomorrow });
   } catch (e) {
     log(`search failed: ${e.message}`);
     audit.append(sceneName, { scene: sceneName, outcome: 'search_error', error: e.message });
     reportProgress({ state: 'failed', result: { error: `search: ${e.message}` } });
     process.exit(1);
   }
-  log(`search returned ${searchResult.candidates.length} candidates (skipped ${searchResult.total_skipped} used)`);
+  log(`search returned ${searchResult.candidates.length} candidates (skipped ${searchResult.total_skipped} used, keywords=${searchResult.keywords_source}${searchResult.llm_used ? '/llm' : ''})`);
 
   // 把搜索过程写进 progress，让 UI 能展示「搜了什么关键词 / 找到哪些候选」
   // 用 push 模式（不是覆盖），让上一个 reportProgress 的字段（phase /
@@ -118,7 +143,9 @@ async function main() {
     state: 'running',
     progress: {
       phase: 'searching',
-      keywords: scene.keywords,                  // 配置里搜的关键词
+      keywords: (searchResult && searchResult.keywords_source === 'llm')
+        ? (searchResult.candidates[0] && searchResult.candidates[0].matched_keywords) || []
+        : scene.keywords,                         // LLM 生成 or 配置的关键词
       candidates: searchResult.candidates.map(c => ({  // 候选歌单列表
         id: c.id,
         name: c.name,
@@ -132,8 +159,38 @@ async function main() {
     },
   });
 
-  // 3-4. Pick a fresh candidate
-  const candidate = searchResult.candidates[0] || null;
+  // 3-4. Pick a fresh candidate.
+  // First try the LLM picker (if it returns a valid id present in candidates).
+  // Otherwise fall back to score-sort[0].
+  let candidate = null;
+  let llm_picked_id = null;
+  if (searchResult.candidates.length > 0) {
+    try {
+      const llmId = await selectPlaylistWithLLM({
+        sceneName,
+        candidates: searchResult.candidates,
+        weatherToday,
+        weatherTomorrow,
+      });
+      if (llmId && llmId !== 'SKIP') {
+        const match = searchResult.candidates.find(c => String(c.id) === String(llmId));
+        if (match) {
+          candidate = match;
+          llm_picked_id = llmId;
+          log(`LLM chose playlist ${llmId} (${match.name})`);
+        } else {
+          log(`LLM returned ${llmId} not in candidates, falling back to score-sort`);
+        }
+      } else if (llmId === 'SKIP') {
+        log(`LLM said SKIP — falling back to score-sort`);
+      } else {
+        log(`LLM picker returned no valid id, falling back to score-sort`);
+      }
+    } catch (e) {
+      log(`LLM picker error: ${e.message.slice(0, 100)}`);
+    }
+  }
+  if (!candidate) candidate = searchResult.candidates[0] || null;
   if (!candidate) {
     log('NO FRESH CANDIDATE — dedup exhausted for this scene');
     audit.append(sceneName, {
@@ -204,7 +261,10 @@ async function main() {
         track_count: adopted.track_count,
         matched_keyword: adopted.matched_keyword,
         score: candidate.score,
+        llm_picked: !!llm_picked_id,
       },
+      llm_keywords: !!searchResult.llm_used,
+      llm_picked: !!llm_picked_id,
       // 歌单里所有歌（让 UI 展示完整歌曲列表）
       songs: adopted.songs.map(s => ({
         id: s.id,
@@ -291,6 +351,13 @@ async function main() {
       downloaded: downloaded.length,
       failed: failed.length,
       download_dir: NETEASE_DOWNLOAD_DIR,
+      // LLM-driven selection flags (so the run-history can show whether the
+      // LLM was involved). Used by admin UI to highlight the LLM steps.
+      llm_keywords: !!searchResult.llm_used,
+      llm_picked: !!llm_picked_id,
+      // The actual keywords used (either LLM-generated or fallback scene.keywords).
+      // Truncated to 10 entries to keep the JSON small.
+      used_keywords: (searchResult.used_keywords || searchResult.candidates?.[0]?.matched_keywords || []).slice(0, 10),
       // Persist the actual downloaded song list so the post-fetch
       // playlist builder (scripts/build_playlist_from_result.js) can
       // turn these into a stitched, intro-narrated playlist without

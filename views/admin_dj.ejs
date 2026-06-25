@@ -393,6 +393,23 @@
         <input id="ip-fallback" type="text" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;" />
       </div>
 
+      <!-- LLM 选歌两个 prompt：搜索词生成 + 候选选择 -->
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🔍 Keyword Generator（LLM 生成搜索词）— 替换固定 keywords，调用失败自动 fallback</div>
+        <div class="meta" style="margin-bottom:4px;">System</div>
+        <textarea id="ip-keyword-system" rows="3" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+        <div class="meta" style="margin:6px 0 4px;">User（${sceneHint} ${todayDate} ${weekday} ${weatherToday} ${weatherTomorrow} ${history} ${historyCount} 占位符）</div>
+        <textarea id="ip-keyword-user" rows="5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🎯 Playlist Selector（LLM 从候选选 1 个 playlist）— 输出 JSON {"playlist_id":"..."} 或 SKIP</div>
+        <div class="meta" style="margin-bottom:4px;">System</div>
+        <textarea id="ip-selector-system" rows="3" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+        <div class="meta" style="margin:6px 0 4px;">User（${sceneHint} ${todayDate} ${weekday} ${candidates} ${candidateCount} ${recentPlaylistIds} ${historyCount} 占位符）</div>
+        <textarea id="ip-selector-user" rows="5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
       <details style="margin-bottom:8px;">
         <summary style="cursor:pointer;color:var(--text-dim);font-size:12px;padding:4px 0;">
           👁️ 实时预览（用上一次 trigger 的 1 首歌做渲染样例）
@@ -1026,6 +1043,13 @@
       $('ip-system').value = introPromptsConfig.system_template || '';
       $('ip-user').value = introPromptsConfig.user_template || '';
       $('ip-fallback').value = introPromptsConfig.fallback_intro || '';
+      // keyword_generator + playlist_selector (each has system + user)
+      const kg = introPromptsConfig.keyword_generator || {system_template:'', user_template:''};
+      const ps = introPromptsConfig.playlist_selector || {system_template:'', user_template:''};
+      $('ip-keyword-system').value = kg.system_template || '';
+      $('ip-keyword-user').value = kg.user_template || '';
+      $('ip-selector-system').value = ps.system_template || '';
+      $('ip-selector-user').value = ps.user_template || '';
       // Scene hints grid moved to #scene-manager (unified card below).
       // ip-scenes is now a compact badge showing scene count.
       const sceneCount = Object.keys(introPromptsConfig.scene_hints || {}).length;
@@ -1038,6 +1062,14 @@
         system_template: $('ip-system').value,
         user_template: $('ip-user').value,
         fallback_intro: $('ip-fallback').value,
+        keyword_generator: {
+          system_template: $('ip-keyword-system').value,
+          user_template: $('ip-keyword-user').value,
+        },
+        playlist_selector: {
+          system_template: $('ip-selector-system').value,
+          user_template: $('ip-selector-user').value,
+        },
         scene_hints: {},
       };
       // Scene hints come from the unified scene-manager.
@@ -1108,7 +1140,7 @@
       $('ip-reset').addEventListener('click', resetIntroPrompts);
       $('ip-preview-btn').addEventListener('click', renderIntroPromptsPreview);
       // Live preview as the user types
-      ['ip-system', 'ip-user', 'ip-fallback'].forEach(id => {
+      ['ip-system', 'ip-user', 'ip-fallback', 'ip-keyword-system', 'ip-keyword-user', 'ip-selector-system', 'ip-selector-user'].forEach(id => {
         $(id).addEventListener('input', () => {
           // debounce a tiny bit to avoid flicker on every keystroke
           clearTimeout(window.__ipPreviewTimer);

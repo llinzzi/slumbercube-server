@@ -24,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const llmHelper = require('./lib/llm_helper');
 
 const NETEASE_API = process.env.NETEASE_API || 'http://localhost:3001';
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -64,6 +65,163 @@ function loadSceneMeta(sceneName) {
   if (!fs.existsSync(fp)) return {};
   try { return JSON.parse(fs.readFileSync(fp, 'utf8')); }
   catch (_) { return {}; }
+}
+
+// ---------------------------------------------------------------
+// LLM-driven keyword generation + playlist selection
+// ---------------------------------------------------------------
+// Both functions are designed to fail gracefully — they return null
+// on any error, and the caller falls back to fixed keywords + score-sort.
+
+// loadSceneHistory(sceneName, limit): read the last N audit entries
+// from data/scene_audit/<scene>.jsonl and compact them to a short
+// one-line-per-entry summary suitable for an LLM prompt.
+const SCENE_AUDIT_DIR = path.join(PROJECT_ROOT, 'data', 'scene_audit');
+function loadSceneHistory(sceneName, limit = 8) {
+  const fp = path.join(SCENE_AUDIT_DIR, `${sceneName}.jsonl`);
+  if (!fs.existsSync(fp)) return [];
+  const lines = fs.readFileSync(fp, 'utf8').split('\n').filter(l => l.trim());
+  const tail = lines.slice(-limit);
+  const out = [];
+  for (const line of tail) {
+    try {
+      const e = JSON.parse(line);
+      // Compact: only fields the LLM needs to avoid repetition
+      const date = (e.ts || '').slice(0, 10);
+      const kws = (e.queried_keywords || []).slice(0, 6).join(',');
+      const ch = e.chosen ? `${e.chosen.playlist_id}|${e.chosen.name}|${e.chosen.matched_keyword || ''}` : '-';
+      out.push(`${date} | outcome=${e.outcome || '?'} | kws=[${kws}] | chosen=${ch}`);
+    } catch { /* skip malformed */ }
+  }
+  return out;
+}
+
+// getSceneHintLabel(sceneName): pull the human-readable scene label
+// from intro_prompts.json (the same value that ${sceneHint} resolves to
+// for the LLM-batch intros).
+function getSceneHintLabel(sceneName) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(INTRO_PROMPTS_PATH, 'utf8'));
+    const v = cfg && cfg.scene_hints && cfg.scene_hints[sceneName];
+    if (v && typeof v === 'object') return v.label || sceneName;
+    if (typeof v === 'string') return v;
+  } catch {}
+  return sceneName;
+}
+
+// getPromptConfig(): load keyword_generator + playlist_selector templates
+// (returns {} if missing — caller decides whether to use LLM at all).
+function getPromptConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(INTRO_PROMPTS_PATH, 'utf8'));
+    return {
+      keyword: cfg.keyword_generator || null,
+      selector: cfg.playlist_selector || null,
+    };
+  } catch { return { keyword: null, selector: null }; }
+}
+
+// generateKeywordsWithLLM(): ask the LLM for fresh search terms based on
+// scene + date + weather + recent history. Returns string[] or null.
+async function generateKeywordsWithLLM({ sceneName, weatherToday, weatherTomorrow }) {
+  const cfg = getPromptConfig().keyword;
+  if (!cfg || !cfg.system_template || !cfg.user_template) return null;
+  const sceneHint = getSceneHintLabel(sceneName);
+  const history = loadSceneHistory(sceneName, 8);
+  const historyStr = history.length ? history.join('\n') : '(无历史)';
+  const todayDate = getChinaDate();
+  const weekday = getChinaWeekday();
+  const user = cfg.user_template
+    .replace(/\$\{sceneHint\}/g, sceneHint)
+    .replace(/\$\{todayDate\}/g, todayDate)
+    .replace(/\$\{weekday\}/g, weekday)
+    .replace(/\$\{weatherToday\}/g, weatherToday || '未知')
+    .replace(/\$\{weatherTomorrow\}/g, weatherTomorrow || '未知')
+    .replace(/\$\{history\}/g, historyStr)
+    .replace(/\$\{historyCount\}/g, String(history.length));
+  console.log(`[${sceneName}] llm-keywords: requesting...`);
+  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.8 });
+  if (!text) return null;
+  // Try to parse JSON array
+  const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+  try {
+    const arr = JSON.parse(cleaned);
+    if (Array.isArray(arr) && arr.every(x => typeof x === 'string') && arr.length > 0) {
+      console.log(`[${sceneName}] llm-keywords: got ${arr.length} →`, arr);
+      return arr.slice(0, 5);
+    }
+  } catch (e) {
+    console.log(`[${sceneName}] llm-keywords: parse fail (${e.message.slice(0, 80)}), text=${text.slice(0, 100)}`);
+  }
+  return null;
+}
+
+// selectPlaylistWithLLM(): given the top-N candidates, ask the LLM
+// which one to pick. Returns playlist_id string (or null on failure / SKIP).
+async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weatherTomorrow }) {
+  const cfg = getPromptConfig().selector;
+  if (!cfg || !cfg.system_template || !cfg.user_template) return null;
+  if (!candidates || candidates.length === 0) return null;
+  const sceneHint = getSceneHintLabel(sceneName);
+  // Compact candidates for the prompt (top 8)
+  const top = candidates.slice(0, 8);
+  const candStr = top.map((c, i) => {
+    const tracks = c.track_count || '?';
+    const plays = c.play_count >= 10000 ? `${(c.play_count / 10000).toFixed(0)}万` : String(c.play_count || 0);
+    return `${i + 1}. id=${c.id} | name=${c.name} | tracks=${tracks} | plays=${plays}`;
+  }).join('\n');
+  // Recent chosen playlist IDs (avoid picking the same one)
+  const recent = loadSceneHistory(sceneName, 5);
+  const recentIds = recent.map(l => {
+    const m = l.match(/chosen=\d+\|([^|]+)/);
+    return m ? m[1] : null;
+  }).filter(Boolean).slice(0, 5);
+  const recentIdsStr = recentIds.length ? recentIds.join(', ') : '(无)';
+  const todayDate = getChinaDate();
+  const weekday = getChinaWeekday();
+  const user = cfg.user_template
+    .replace(/\$\{sceneHint\}/g, sceneHint)
+    .replace(/\$\{todayDate\}/g, todayDate)
+    .replace(/\$\{weekday\}/g, weekday)
+    .replace(/\$\{weatherToday\}/g, weatherToday || '未知')
+    .replace(/\$\{weatherTomorrow\}/g, weatherTomorrow || '未知')
+    .replace(/\$\{candidates\}/g, candStr)
+    .replace(/\$\{candidateCount\}/g, String(top.length))
+    .replace(/\$\{recentPlaylistIds\}/g, recentIdsStr)
+    .replace(/\$\{historyCount\}/g, String(recent.length));
+  console.log(`[${sceneName}] llm-select: requesting...`);
+  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.3 });
+  if (!text) return null;
+  const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+  // Try JSON object form first: {"playlist_id":"123"} or {"playlist_id":"SKIP"}
+  try {
+    const obj = JSON.parse(cleaned);
+    if (obj && typeof obj.playlist_id === 'string') {
+      const id = obj.playlist_id.trim();
+      if (id === 'SKIP') { console.log(`[${sceneName}] llm-select: SKIP`); return 'SKIP'; }
+      console.log(`[${sceneName}] llm-select: chose id=${id}`);
+      return id;
+    }
+  } catch {}
+  // Try bare number (just the id)
+  const m = cleaned.match(/^"?(\d+)"?$/);
+  if (m) {
+    console.log(`[${sceneName}] llm-select: bare id ${m[1]}`);
+    return m[1];
+  }
+  console.log(`[${sceneName}] llm-select: parse fail, text=${cleaned.slice(0, 100)}`);
+  return null;
+}
+
+// Chinese date/weekday helpers (mirrored from build_playlist for parity)
+function getChinaDate() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
+}
+const WEEKDAY_NAMES_CN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+function getChinaWeekday() {
+  return WEEKDAY_NAMES_CN[new Date().getDay()];
 }
 
 /** Collect all playlist ids ever adopted, across all scenes. */
@@ -114,14 +272,40 @@ function score(p) {
   return pc + tc * 1000;
 }
 
-async function searchScene(sceneName) {
-  const { keywords, source } = loadSceneKeywords(sceneName);
+async function searchScene(sceneName, opts = {}) {
+  // opts.useLLM      - try LLM keyword generation first
+  // opts.weatherToday, opts.weatherTomorrow - for LLM context
+  // Returns {scene, candidates, total_skipped, keywords_source, llm_used}
+  let keywords;
+  let source;
+  let llm_used = false;
+
+  if (opts.useLLM) {
+    const llmKws = await generateKeywordsWithLLM({
+      sceneName,
+      weatherToday: opts.weatherToday,
+      weatherTomorrow: opts.weatherTomorrow,
+    });
+    if (llmKws && llmKws.length > 0) {
+      keywords = llmKws;
+      source = 'llm';
+      llm_used = true;
+      console.log(`[${sceneName}] using LLM keywords:`, keywords);
+    }
+  }
+  if (!keywords) {
+    const fb = loadSceneKeywords(sceneName);
+    keywords = fb.keywords;
+    source = fb.source;
+  }
   if (!keywords || keywords.length === 0) {
     return {
       scene: sceneName,
       candidates: [],
       total_skipped: 0,
       keywords_source: source,
+      llm_used,
+      used_keywords: keywords,
       error: 'no keywords configured for this scene',
     };
   }
@@ -167,7 +351,7 @@ async function searchScene(sceneName) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
-  return { scene: sceneName, candidates, total_skipped: skipped, keywords_source: source };
+  return { scene: sceneName, candidates, total_skipped: skipped, keywords_source: source, llm_used, used_keywords: keywords };
 }
 
 async function main() {
@@ -194,4 +378,12 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { searchScene, loadAllUsedPlaylistIds };
+module.exports = {
+  searchScene,
+  loadAllUsedPlaylistIds,
+  // LLM hooks (used by scene_fetch.js to drive keyword gen + playlist selection)
+  generateKeywordsWithLLM,
+  selectPlaylistWithLLM,
+  loadSceneHistory,
+  loadSceneKeywords,
+};

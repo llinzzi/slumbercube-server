@@ -247,6 +247,9 @@ function attachExitHandler(child, meta) {
     if (meta.kind === 'scene-fetch' && existing && existing.result) {
       histEntry.playlist_id = existing.result.playlist_id || null;
       histEntry.playlist_name = existing.result.playlist_name || null;
+      histEntry.llm_keywords = !!existing.result.llm_keywords;
+      histEntry.llm_picked = !!existing.result.llm_picked;
+      histEntry.used_keywords = existing.result.used_keywords || [];
     }
     queue.appendHistory(histEntry);
 

@@ -134,12 +134,20 @@ const INTRO_PROMPTS_DEFAULTS = {
   system_template: `你是电台DJ。按 JSON 数组格式输出，不要任何思考过程或解释，不要 markdown 代码块。
 每首歌对应一句 15-20 字的中文播报词，自然亲切、语气贴合"\${sceneHint}"。
 格式：[{"name":"歌名","intro":"..."}, ...]，顺序与下面列表完全一致。`,
-  user_template: `场景：\${sceneHint}。
-今天天气：\${weatherToday}
-明天天气：\${weatherTomorrow}
-请结合天气氛围为下面 \${songs.length} 首歌各写一句 15-20 字的中文播报词：
-
-\${songList}`,
+  user_template: '【当天天气概况】：今天 ${weatherToday}。明天 ${weatherTomorrow}。\n【场景】：${sceneHint}\n【日期】：${todayDate}\n【星期】：${weekday}\n\n请为下面 ${songs.length} 首歌各写**一段**播报词（不许多写！不要额外的开场/收尾段！每首歌对应一段！）：\n\n- 第 1 首《${songs[0].name}》：110-160 字的\"开场白\"（**必须包含歌名《${songs[0].name}》**）。开场白可以包含今天的天气、穿衣服指南、日期、放假信息等（如果是早安场景）。如果场景不是早安，开场白可以提一下日期/天气/场景氛围。\n\n- 第 2 到第 ${songs.length - 1} 首：每首 22-38 字的单句播报词。**每段必须包含该首歌的原名**（歌名必须出现在句子中间或末尾，不要单独成行），一个画面或动作，不用形容词堆叠。\n\n- 第 ${songs.length} 首《${songs[songs.length - 1].name}》（最后一首）：18-30 字的简短收尾。**必须包含歌名《${songs[songs.length - 1].name}》**。\n\n铁律：\n- 总共**只输出 ${songs.length} 段**，每首歌一段，不多写！\n- 每段只含一首歌的歌名\n- 每个播报词中，歌名只能出现一次\n- 不用感叹号、不用 emoji、不用网络梗\n- 输出格式：每首歌一段连续文本（不要分两行），段与段之间用一个空行隔开。整篇输出用纯文本，不要代码块。\n\n【${songs.length}首歌曲名称列表】：\n${songList}\n',
+  // Used by scripts/scene_playlist_search.js — pre-NCM-search keyword generator.
+  // When the LLM is reachable, this replaces the fixed scene.keywords[] with
+  // context-aware fresh terms (avoiding recent repeats).
+  keyword_generator: {
+    system_template: '你是网易云电台的搜索词策划。根据用户给定的场景描述、最近用过的搜索词和已选过的歌单 ID，生成 3-5 个**新**搜索词，避免重复。',
+    user_template: '场景：\${sceneHint}\n日期：\${todayDate} \${weekday}\n天气：今天 \${weatherToday}，明天 \${weatherTomorrow}\n\n最近 \${historyCount} 次本场景的搜索历史（避免重复这些关键词 + 已选过的歌单）：\n\${history}\n\n要求：\n1. 输出 3-5 个**新**搜索词（中文为主，可以 1-2 个英文补充）\n2. 围绕场景「\${sceneHint}」，贴近当代生活/情绪\n3. 避免与历史关键词重复\n4. 输出格式：严格 JSON 数组，例 ["词1","词2","词3"]，不要任何解释、不要 markdown 代码块',
+  },
+  // Used by scripts/scene_playlist_search.js — post-NCM-search playlist selector.
+  // When the LLM picks one, scene_fetch.js prefers that over score-sort[0].
+  playlist_selector: {
+    system_template: '你是电台 DJ。从候选歌单里选一个最契合场景描述的。如果有「最近用过的歌单」列表，必须排除它们。',
+    user_template: '场景：\${sceneHint}\n日期：\${todayDate} \${weekday}\n\n候选歌单（共 \${candidateCount} 个，按播放量粗排）：\n\${candidates}\n\n最近 \${historyCount} 次本场景已选过的歌单 ID（**禁止重复**）：\n\${recentPlaylistIds}\n\n要求：\n1. 输出**仅一个**候选的 playlist_id\n2. 如果候选都不合适（场景完全对不上），输出 "SKIP"\n3. 优先选：歌单名契合场景 > 曲目数适中（30-150 首最理想，太多容易走样）> 播放量参考\n4. 输出格式：严格 JSON，例 {"playlist_id":"12345"} 或 {"playlist_id":"SKIP"}，不要任何解释、不要 markdown 代码块',
+  },
   // scene_hints now holds per-scene editor config:
   //   label    — short Chinese tag fed into the LLM prompt as ${sceneHint}
   //   keywords — netease playlist search terms used by
@@ -298,60 +306,15 @@ function getChinaWeekday() {
   return WEEKDAY_NAMES[new Date().getDay()];
 }
 
-async function anthropicChat(system, user, timeoutMs = 120000) {
-  if (!ANTHROPIC_KEY) {
-    log('anthropic: no API key found in ~/.mmx/config.json');
-    return null;
-  }
-  try {
-    const body = JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
-      system,
-      messages: [{ role: 'user', content: user }],
-    });
-    const result = await new Promise((resolve, reject) => {
-      const https = require('https');
-      const req = https.request(ANTHROPIC_BASE, {
-        method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        timeout: timeoutMs,
-      }, (res) => {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => {
-          try {
-            const raw = Buffer.concat(chunks).toString();
-            const data = JSON.parse(raw);
-            if (data.error) reject(new Error(data.error.message || JSON.stringify(data.error)));
-            else resolve(data);
-          } catch (e) { reject(e); }
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.write(body);
-      req.end();
-    });
-    // Anthropic-compatible API returns content as [{type:"text",text:"..."}]
-    // The first text block is the assistant's final answer; we ignore
-    // any thinking/reasoning blocks (the API may include them but the
-    // intros we care about live in text).
-    const text = (result.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
-      .trim();
-    log(`anthropic: OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
-    return text || null;
-  } catch (e) {
-    log('anthropic failed:', e.message.slice(0, 500));
-    return null;
-  }
+// anthropicChat now delegates to the shared helper (scripts/lib/llm_helper.js)
+process.env.LLM_HELPER_TAG = 'build-llm';
+const llmHelper = require('./lib/llm_helper');
+async function anthropicChat(system, user, opts = {}) {
+  return llmHelper.anthropicChat(system, user, {
+    timeoutMs: opts.timeoutMs || opts.timeoutMs === 0 ? opts.timeoutMs : 120000,
+    max_tokens: 4000,
+    temperature: 0.7,
+  });
 }
 
 function log(...args) { console.log(`[build-from-result ${new Date().toISOString()}]`, ...args); }
@@ -400,9 +363,13 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
 
   const systemPrompt = promptCfg.system_template
     .replace(/\$\{sceneHint\}/g, sceneHint);
+  const firstSongName = (songs[0] && songs[0].name) || '';
+  const lastSongName  = (songs[songs.length - 1] && songs[songs.length - 1].name) || '';
   const userPrompt = promptCfg.user_template
     .replace(/\$\{sceneHint\}/g, sceneHint)
     .replace(/\$\{songs\.length\}/g, String(songs.length))
+    .replace(/\$\{songs\[0\]\.name\}/g, firstSongName)
+    .replace(/\$\{songs\[songs\.length - 1\]\.name\}/g, lastSongName)
     .replace(/\$\{songList\}/g, songList)
     .replace(/\$\{weatherToday\}/g, weatherToday)
     .replace(/\$\{weatherTomorrow\}/g, weatherTomorrow)

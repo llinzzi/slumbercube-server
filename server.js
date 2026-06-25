@@ -2141,7 +2141,7 @@ const INTRO_PROMPTS_PATH = path.join(__dirname, 'config', 'intro_prompts.json');
 //              scripts/scene_playlist_search.js
 const INTRO_PROMPTS_DEFAULTS = {
   system_template: '你是电台DJ。按 JSON 数组格式输出，不要任何思考过程或解释，不要 markdown 代码块。\n每首歌对应一句 15-20 字的中文播报词，自然亲切、语气贴合"${sceneHint}"。\n格式：[{"name":"歌名","intro":"..."}, ...]，顺序与下面列表完全一致。',
-  user_template: '场景：${sceneHint}。\n今天天气：${weatherToday}\n明天天气：${weatherTomorrow}\n请结合天气氛围为下面 ${songs.length} 首歌各写一句 15-20 字的中文播报词：\n\n${songList}',
+  user_template: '【当天天气概况】：今天 ${weatherToday}。明天 ${weatherTomorrow}。\n【场景】：${sceneHint}\n【日期】：${todayDate}\n【星期】：${weekday}\n\n请为下面 ${songs.length} 首歌各写**一段**播报词（不许多写！不要额外的开场/收尾段！每首歌对应一段！）：\n\n- 第 1 首《${songs[0].name}》：110-160 字的\"开场白\"（**必须包含歌名《${songs[0].name}》**）。开场白可以包含今天的天气、穿衣服指南、日期、放假信息等（如果是早安场景）。如果场景不是早安，开场白可以提一下日期/天气/场景氛围。\n\n- 第 2 到第 ${songs.length - 1} 首：每首 22-38 字的单句播报词。**每段必须包含该首歌的原名**（歌名必须出现在句子中间或末尾，不要单独成行），一个画面或动作，不用形容词堆叠。\n\n- 第 ${songs.length} 首《${songs[songs.length - 1].name}》（最后一首）：18-30 字的简短收尾。**必须包含歌名《${songs[songs.length - 1].name}》**。\n\n铁律：\n- 总共**只输出 ${songs.length} 段**，每首歌一段，不多写！\n- 每段只含一首歌的歌名\n- 每个播报词中，歌名只能出现一次\n- 不用感叹号、不用 emoji、不用网络梗\n- 输出格式：每首歌一段连续文本（不要分两行），段与段之间用一个空行隔开。整篇输出用纯文本，不要代码块。\n\n【${songs.length}首歌曲名称列表】：\n${songList}\n',
   scene_hints: {
     sport:  { label: '现在运动时间', keywords: ['运动', '健身', '跑步', '节奏感', '燃脂', 'Workout'] },
     morning:{ label: '早安',         keywords: ['早安', '起床', '清晨轻音乐', '晨间音乐', '早间音乐', 'Morning'] },
@@ -2151,6 +2151,20 @@ const INTRO_PROMPTS_DEFAULTS = {
     sleep:  { label: '伴你入眠',     keywords: ['助眠音乐', '深度睡眠', '睡眠音乐', '放松', '晚安', 'Sleep'] },
   },
   fallback_intro: '接下来请欣赏《${name}》',
+  // Used by scripts/scene_playlist_search.js — pre-NCM-search keyword generator.
+  // Replaces fixed scene.keywords[] with LLM-generated fresh terms (avoiding
+  // recent repeats). Falls back to score-sort if LLM call fails.
+  keyword_generator: {
+    system_template: '你是网易云电台的搜索词策划。根据用户给定的场景描述、最近用过的搜索词和已选过的歌单 ID，生成 3-5 个**新**搜索词，避免重复。',
+    user_template: '场景：${sceneHint}\n日期：${todayDate} ${weekday}\n天气：今天 ${weatherToday}，明天 ${weatherTomorrow}\n\n最近 ${historyCount} 次本场景的搜索历史（避免重复这些关键词 + 已选过的歌单）：\n${history}\n\n要求：\n1. 输出 3-5 个**新**搜索词（中文为主，可以 1-2 个英文补充）\n2. 围绕场景「${sceneHint}」，贴近当代生活/情绪\n3. 避免与历史关键词重复\n4. 输出格式：严格 JSON 数组，例 ["词1","词2","词3"]，不要任何解释、不要 markdown 代码块',
+  },
+  // Used by scripts/scene_playlist_search.js — post-NCM-search playlist selector.
+  // Picks one playlist_id from the candidates list, preferring scene-fit
+  // over play_count. Returns "SKIP" if no candidate fits.
+  playlist_selector: {
+    system_template: '你是电台 DJ。从候选歌单里选一个最契合场景描述的。如果有「最近用过的歌单」列表，必须排除它们。',
+    user_template: '场景：${sceneHint}\n日期：${todayDate} ${weekday}\n\n候选歌单（共 ${candidateCount} 个，按播放量粗排）：\n${candidates}\n\n最近 ${historyCount} 次本场景已选过的歌单 ID（**禁止重复**）：\n${recentPlaylistIds}\n\n要求：\n1. 输出**仅一个**候选的 playlist_id\n2. 如果候选都不合适（场景完全对不上），输出 "SKIP"\n3. 优先选：歌单名契合场景 > 曲目数适中（30-150 首最理想，太多容易走样）> 播放量参考\n4. 输出格式：严格 JSON，例 {"playlist_id":"12345"} 或 {"playlist_id":"SKIP"}，不要任何解释、不要 markdown 代码块',
+  },
 };
 
 // Accept either new {label, keywords[]} or legacy bare-string
@@ -2187,8 +2201,24 @@ function mergeIntroPromptConfig(saved) {
     fallback_intro: (saved && typeof saved.fallback_intro === 'string')
       ? saved.fallback_intro
       : INTRO_PROMPTS_DEFAULTS.fallback_intro,
+    keyword_generator: mergePromptGroup(saved && saved.keyword_generator, INTRO_PROMPTS_DEFAULTS.keyword_generator),
+    playlist_selector: mergePromptGroup(saved && saved.playlist_selector, INTRO_PROMPTS_DEFAULTS.playlist_selector),
     scene_hints: {},
   };
+
+  // Merge a {system_template, user_template} group: if saved has valid
+  // strings, use them; otherwise fall back to defaults.
+  function mergePromptGroup(savedGrp, defaultGrp) {
+    if (!defaultGrp) return null;
+    return {
+      system_template: (savedGrp && typeof savedGrp.system_template === 'string')
+        ? savedGrp.system_template
+        : defaultGrp.system_template,
+      user_template: (savedGrp && typeof savedGrp.user_template === 'string')
+        ? savedGrp.user_template
+        : defaultGrp.user_template,
+    };
+  }
   const allKeys = new Set([
     ...Object.keys(INTRO_PROMPTS_DEFAULTS.scene_hints),
     ...Object.keys((saved && saved.scene_hints) || {}),
@@ -2243,6 +2273,17 @@ app.post('/api/dj/intro-prompts', express.json({ limit: '64kb' }), (req, res) =>
     if (typeof incoming.system_template === 'string') merged.system_template = incoming.system_template;
     if (typeof incoming.user_template === 'string')   merged.user_template   = incoming.user_template;
     if (typeof incoming.fallback_intro === 'string')  merged.fallback_intro  = incoming.fallback_intro;
+    // Keyword generator + playlist selector (each is a {system, user} group)
+    if (incoming.keyword_generator && typeof incoming.keyword_generator === 'object') {
+      const kg = incoming.keyword_generator;
+      if (typeof kg.system_template === 'string') merged.keyword_generator.system_template = kg.system_template;
+      if (typeof kg.user_template === 'string')   merged.keyword_generator.user_template   = kg.user_template;
+    }
+    if (incoming.playlist_selector && typeof incoming.playlist_selector === 'object') {
+      const ps = incoming.playlist_selector;
+      if (typeof ps.system_template === 'string') merged.playlist_selector.system_template = ps.system_template;
+      if (typeof ps.user_template === 'string')   merged.playlist_selector.user_template   = ps.user_template;
+    }
 
     // Accept scene_hints in either new {label, keywords[]} format
     // or legacy bare-string format. Normalize and merge per-key:
