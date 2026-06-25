@@ -292,9 +292,13 @@ function fetchWeatherData() {
           tempMax: forecast.daily[0].tempMax,
           textDay: forecast.daily[0].textDay,
           textNight: forecast.daily[0].textNight,
-          // New: full QWeather responses
+          // Full QWeather responses
           updateTime: now.updateTime,
           now: now.now,
+          // Convenience aliases for the /api/esp and /api/weather callers —
+          // they don't have to reach into daily[0] / daily[1] themselves.
+          today: forecast.daily[0],
+          tomorrow: forecast.daily[1] || forecast.daily[0],
           daily: forecast.daily,
         });
       } else {
@@ -1508,16 +1512,19 @@ app.get('/api/esp/:deviceId', async (req, res) => {
   // ESP32's 2KB receive buffer. Falls back to the playlist's snapshot
   // fields (pl.weather / pl.time_of_day) if the live cache is empty.
   const w = _weatherCache;
+  // Today comes from the cache if available, else from daily[0].
+  // (Cache stores today/tomorrow as aliases since commit X.)
+  const today = (w && w.today) || (w && w.daily && w.daily[0]) || {};
   let respWeather;
-  if (w && w.now && w.today) {
+  if (w && w.now && today) {
     respWeather = {
       temp:      w.now.temp,
       text:      w.now.text,
       humidity:  w.now.humidity,
-      tempMax:   w.today.tempMax,
-      tempMin:   w.today.tempMin,
-      textDay:   w.today.textDay,
-      textNight: w.today.textNight,
+      tempMax:   today.tempMax,
+      tempMin:   today.tempMin,
+      textDay:   today.textDay,
+      textNight: today.textNight,
     };
   } else {
     respWeather = {
