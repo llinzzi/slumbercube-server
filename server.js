@@ -1502,8 +1502,34 @@ app.get('/api/esp/:deviceId', async (req, res) => {
   playedHistory.push(song.name);
   if (playedHistory.length > MAX_HISTORY) playedHistory.shift();
 
+  // Build the lean weather response — only the fields ESP32 firmware
+  // parses. We strip the full _weatherCache (which has daily[7] + now +
+  // tomorrow) so the response stays under ~500 bytes and fits in the
+  // ESP32's 2KB receive buffer. Falls back to the playlist's snapshot
+  // fields (pl.weather / pl.time_of_day) if the live cache is empty.
   const w = _weatherCache;
-  const respWeather = w || { text: pl.weather, time: pl.time_of_day };
+  let respWeather;
+  if (w && w.now && w.today) {
+    respWeather = {
+      temp:      w.now.temp,
+      text:      w.now.text,
+      humidity:  w.now.humidity,
+      tempMax:   w.today.tempMax,
+      tempMin:   w.today.tempMin,
+      textDay:   w.today.textDay,
+      textNight: w.today.textNight,
+    };
+  } else {
+    respWeather = {
+      temp: pl.weather_temp || '--',
+      text: pl.weather || '',
+      humidity: pl.weather_humidity || '--',
+      tempMax: pl.weather_temp_max || '--',
+      tempMin: pl.weather_temp_min || '--',
+      textDay: pl.weather_text_day || '',
+      textNight: pl.weather_text_night || '',
+    };
+  }
 
   res.json({
     song: song.name,
