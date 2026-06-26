@@ -367,6 +367,7 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
   const lastSongName  = (songs[songs.length - 1] && songs[songs.length - 1].name) || '';
   const userPrompt = promptCfg.user_template
     .replace(/\$\{sceneHint\}/g, sceneHint)
+    .replace(/\$\{songs\.length - 1\}/g, String(songs.length - 1))
     .replace(/\$\{songs\.length\}/g, String(songs.length))
     .replace(/\$\{songs\[0\]\.name\}/g, firstSongName)
     .replace(/\$\{songs\[songs\.length - 1\]\.name\}/g, lastSongName)
