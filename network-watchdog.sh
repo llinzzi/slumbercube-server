@@ -13,7 +13,7 @@
 #        - 能不能 ping 通网关 192.168.8.1
 #      任意一项失败就重置 ens1（先 down 再 up），最多重试 5 次。
 #
-# 跑法：crontab @reboot /home/zulin/radio_streams/network-watchdog.sh
+# 跑法：crontab @reboot /home/zulin/slumbercube-server/network-watchdog.sh
 #
 # 日志：/tmp/network_watchdog.log
 ###############################################################################

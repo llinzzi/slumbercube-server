@@ -3,9 +3,9 @@
 # This prevents silent epoll stalls.
 
 LOG=/tmp/dj_worker.log
-WORKER_PID_FILE=/home/zulin/radio_streams/.radio_playlist/worker.pid
-STATE=/home/zulin/radio_streams/.radio_playlist/queue_state.json
-PROJECT=/home/zulin/radio_streams
+WORKER_PID_FILE=/home/zulin/slumbercube-server/.radio_playlist/worker.pid
+STATE=/home/zulin/slumbercube-server/.radio_playlist/queue_state.json
+PROJECT=/home/zulin/slumbercube-server
 LOCK=/tmp/worker_healthcheck.lock
 
 # Skip if a healthcheck is already running

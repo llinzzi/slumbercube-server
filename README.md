@@ -101,7 +101,7 @@ PORT=3001 exec node node_modules/NeteaseCloudMusicApi/app.js
 ### 启动
 
 ```bash
-git clone https://github.com/llinzzi/slumber-cube-server
+git clone https://github.com/llinzzi/slumbercube-server
 cd slumber-cube-server
 npm install
 node server.js          # 主进程 :3000
@@ -263,8 +263,8 @@ Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用�
 
 ```cron
 @reboot /home/zulin/ncm-api/ncm-watchdog.sh >/dev/null 2>&1
-@reboot /home/zulin/radio_streams/radio-watchdog.sh >/dev/null 2>&1
-@reboot /home/zulin/radio_streams/dj-worker-watchdog.sh >/dev/null 2>&1
+@reboot /home/zulin/slumbercube-server/radio-watchdog.sh >/dev/null 2>&1
+@reboot /home/zulin/slumbercube-server/dj-worker-watchdog.sh >/dev/null 2>&1
 ```
 
 每个 watchdog 每 5 秒 `pgrep`，死了就重启。手动起也可以：
@@ -279,7 +279,7 @@ PORT=3001 node node_modules/NeteaseCloudMusicApi/app.js  # 网易云 sidecar
 
 ```bash
 # 重启主进程
-cd ~/radio_streams && bash scripts/restart_server.sh
+cd ~/slumbercube-server && bash scripts/restart_server.sh
 
 # 重启 worker
 pkill -9 -f dj_worker.js && sleep 5  # watchdog 自动拉起

@@ -24,12 +24,12 @@
   "author": "llinzzi",
   "repository": {
     "type": "git",
-    "url": "https://github.com/llinzzi/slumber-cube-server.git"
+    "url": "git+https://github.com/llinzzi/slumbercube-server.git"
   },
   "bugs": {
-    "url": "https://github.com/llinzzi/slumber-cube-server/issues"
+    "url": "https://github.com/llinzzi/slumbercube-server/issues"
   },
-  "homepage": "https://github.com/llinzzi/slumber-cube-server",
+  "homepage": "https://github.com/llinzzi/slumbercube-server#readme",
   "keywords": [
     "radio",
     "jukebox",

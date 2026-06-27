@@ -11,7 +11,7 @@
 set -u
 
 LOG=/tmp/radio_watchdog.log
-PROJ="$HOME/radio_streams"
+PROJ="$HOME/slumbercube-server"
 START="$PROJ/restart.sh"
 
 log() {

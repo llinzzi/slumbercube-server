@@ -22,7 +22,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const GENERATE_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'generate_playlist.js');
 const NODE_BIN = process.execPath;
 
-const TAG = '# radio_streams: scheduled playlist';
+const TAG = '# slumbercube-server: scheduled playlist';
 
 // 07:00 和 21:00 各跑一次
 const CRON_JOBS = [
@@ -72,7 +72,7 @@ function install() {
   const existing = readCrontab();
   const newLines = buildCronLines();
 
-  // 移除旧的 radio_streams 行（幂等）
+  // 移除旧的 slumbercube-server 行（幂等）
   const filtered = existing
     .split('\n')
     .filter(l => !l.includes(TAG));
@@ -101,12 +101,12 @@ function uninstall() {
 function listJobs() {
   const existing = readCrontab();
   const jobs = existing.split('\n').filter(l => l.includes(TAG));
-  console.log(`Found ${jobs.length} radio_streams jobs:`);
+  console.log(`Found ${jobs.length} slumbercube-server jobs:`);
   jobs.forEach(l => console.log(`  ${l}`));
 }
 
 function status() {
-  console.log('=== radio_streams scheduled playlist status ===\n');
+  console.log('=== slumbercube-server scheduled playlist status ===\n');
 
   // 1. Crontab
   const existing = readCrontab();

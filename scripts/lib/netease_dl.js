@@ -192,7 +192,7 @@ async function neteaseSearchAndDownload(name, artist, { logger } = {}) {
 // this state in the same worker process.
 let _currentPlaylist = null;
 const LIBRARY_INDEX_FILE = process.env.LIBRARY_INDEX_FILE
-  || path.join(process.env.HOME || '/root', 'radio_streams', '.radio_playlist', 'library_index.json');
+  || path.join(process.env.HOME || '/root', 'slumbercube-server', '.radio_playlist', 'library_index.json');
 
 function setCurrentPlaylist(p) {
   // p: { id, name } | null

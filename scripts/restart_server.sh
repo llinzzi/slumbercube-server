@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start radio_streams server (idempotent — kills any old process first)
 set -e
-cd /home/zulin/radio_streams
+cd /home/zulin/slumbercube-server
 export PATH=/home/zulin/.nvm/versions/node/v20.20.2/bin:$PATH
 export TZ=Asia/Shanghai
 

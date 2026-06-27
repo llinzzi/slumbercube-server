@@ -24,7 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const PROJECT = (process.env.HOME || '/root') + '/radio_streams';
+const PROJECT = (process.env.HOME || '/root') + '/slumbercube-server';
 const QUEUE_STATE = path.join(PROJECT, '.radio_playlist', 'queue_state.json');
 const LIBRARY_INDEX = path.join(PROJECT, '.radio_playlist', 'library_index.json');
 const NETEASE_DIR = process.env.NETEASE_DOWNLOAD_DIR || '/home/zulin/Music/网易云收藏';
