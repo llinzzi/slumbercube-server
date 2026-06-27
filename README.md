@@ -1,424 +1,351 @@
 # 192fm · radio_streams
 
-床头广播盒子的 Node.js / Express 服务，部署在 `192.168.8.192:3000`。
+> 床头广播盒子的服务端。把网易云收藏 / 定时场景任务 / LLM 生成的播报词 / TTS / ESP32 拉歌 串成一条全自动链路，再加上一组本地可视化的管理后台。
 
-单电台模式（`~/Music/网易云收藏/` 30+ 首 mp3），由 DJ Agent 后台自动抓网易云收藏 → LLM 写引言 → TTS → lame 拼接 → ESP32 端通过 `/api/esp` 抽歌播放。admin UI 编排场景、定时、音量；`/temps` 收设备温湿度画图；`/log` 看 API 请求。Settings 页可改天气城市/API key、minimax token、曲库目录。
-
-## 目录
-
-- [部署拓扑](#部署拓扑)
-- [进程结构](#进程结构)
-- [Web UI 页面](#web-ui-页面)
-- [API Endpoints](#api-endpoints)
-- [场景任务管线](#场景任务管线)
-- [天气统一缓存](#天气统一缓存)
-- [温湿度采集](#温湿度采集)
-- [设置中心](#设置中心)
-- [自动化与开机自启](#自动化与开机自启)
-- [文件布局](#文件布局)
-- [依赖](#依赖)
-- [常见操作](#常见操作)
-- [已知坑](#已知坑)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-339933)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/express-4.18-000000)](https://expressjs.com)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Made with ❤️](https://img.shields.io/badge/made%20with-%E2%9D%A4%EF%B8%8F-red)](#)
 
 ---
 
-## 部署拓扑
+## 这是什么
+
+`192fm` 是一个跑在一台小服务器（默认 `192.168.8.192`，所以叫 192）上的 Node.js 服务。它每天自动从网易云下载合适的歌 → 让 LLM 写一段贴合天气和场景的播报词 → TTS 合成 → 拼接成可直接播放的 mp3 → 房间里的 ESP32 设备（OLED 屏 + 小喇叭）定时拉一首播。
+
+所有"智能"的部分（选歌、选歌单、写词）都可被替换成固定配置运行，所以即使 LLM / TTS 全部挂掉，整个链路也只会 fallback 到老的"按 score 排序"逻辑继续工作。
+
+## 目录
+
+- [特性](#特性)
+- [架构](#架构)
+- [快速开始](#快速开始)
+- [配置](#配置)
+- [场景任务（DJ Agent）](#场景任务dj-agent)
+- [API 一览](#api-一览)
+- [Web UI](#web-ui)
+- [后台进程](#后台进程)
+- [常见操作](#常见操作)
+- [已知坑](#已知坑)
+- [开发](#开发)
+- [License](#license)
+
+## 特性
+
+- **DJ Agent** —— 全自动场景任务。每个场景（早安 / 运动 / 夜深了 / ...）定时触发，先用 LLM 生成搜索词、再从候选歌单里挑 1 个、再用 LLM 给每首歌写播报词、再 TTS + lame 拼接。
+- **ESP32 拉歌端点** —— `GET /api/esp/<deviceId>` 返回当前应播的歌（mp3 URL + 实时天气）。也接收设备上传的温湿度（`?t=X&h=Y`）。
+- **温湿度图表** —— `/temps` 用 Chart.js 画温度/湿度时间线，自动按设备 IP 区分。
+- **API 日志** —— `/log` 记录所有 API 请求响应，支持按 IP / method / status 过滤。
+- **设置中心** —— `/settings` 在 UI 上改天气城市 / API key / 曲库目录，所有改动落 `config/settings.json` 立即生效。
+- **可降级** —— 任何一环失败（QWeather 503 / LLM timeout / 网易云限流）都有 fallback：固定关键词、按 score 排序、缓存里的上一次天气。
+
+## 架构
 
 ```mermaid
 graph TB
-  subgraph "192.168.8.192 — Ubuntu 22.04, 时区 UTC"
+  subgraph "192.168.8.192 — 本仓库 source of truth"
     S[server.js :3000<br/>Express + EJS + lowdb]
-    W[dj_worker.js<br/>scene 后台 daemon]
+    W[dj_worker.js<br/>场景任务 daemon]
     N[ncm sidecar :3001<br/>NeteaseCloudMusicApi]
-    R[radio-watchdog.sh<br/>@reboot]
-    D[dj-worker-watchdog.sh<br/>@reboot]
-    NW[ncm-watchdog.sh<br/>@reboot]
-    C[crontab<br/>@reboot + scene 调度]
+    SC[scene_fetch.js<br/>搜歌 + 下载]
+    BP[build_playlist.js<br/>LLM + TTS + lame 拼接]
   end
+
+  QW[QWeather API] -->|7天预报 + 实时| S
+  S -->|缓存 + /api/weather| SC
+  S -->|缓存 + /api/weather| BP
+  LLM[MiniMax-M3] -->|intro 文案| BP
+  TTS[MiniMax TTS] -->|mp3| BP
+  LLM -->|搜索词 + 选歌单| SC
+  N -->|搜索 / 下载| SC
+  SC -->|写到 .radio_playlist| BP
+  BP -->|stitched mp3| S
 
   subgraph "客户端"
     ESP[ESP32-C3<br/>SSD1322 OLED]
-    BR[Browser<br/>admin / library / temps / log / settings]
+    BR[Browser<br/>/dj /library /temps /log /settings]
   end
 
-  ESP -- "GET /api/esp?t=X&h=Y" --> S
-  BR -- "GET/POST /dj, /settings, /library..." --> S
-  S -- ".radio_playlist/*state*" --> W
-  W -- "node scripts/scene_fetch.js" --> N
-  N -- "NCM API" -->|搜索/下载| 网易云
-  S -- "QWeather" -->|天气 Now + 7d| 和风天气
+  ESP -->|GET /api/esp/:id?t=X&h=Y| S
+  BR -->|HTTP| S
 ```
 
-## 进程结构
+数据流说明：
+- 主进程 `server.js` 同时跑 Web + API + 音频 + 天气缓存。
+- 后台 `dj_worker.js` 监听 trigger 文件 → spawn `scene_fetch.js`（搜歌下载）→ spawn `build_playlist.js`（LLM + TTS + 拼接）→ 写 `playlist.json`。
+- 主进程读 `playlist.json` 给 ESP32 端点用，**单文件锁 14 小时**（过期自动重建）。
 
-| 进程 | 入口 | 职责 | 守护方式 |
-|------|------|------|----------|
-| **server** | `node server.js` | Web UI + API + 音频 + 天气缓存 | `radio-watchdog.sh` (@reboot) |
-| **dj_worker** | `node scripts/dj_worker.js` | 监听 trigger, 跑 scene-fetch+build | `dj-worker-watchdog.sh` (@reboot) |
-| **ncm** | `~/ncm-api/app.js` (PORT=3001) | 网易云 sidecar (登录/搜索/下载 URL) | `~/ncm-api/ncm-watchdog.sh` (@reboot) |
+## 快速开始
 
-```mermaid
-graph LR
-  subgraph "三进程协作"
-    S[server] -- "写 state.json" --> Q[queue_state.json]
-    Q -- "轮询" --> W[dj_worker]
-    W -- "spawn" --> SF[scene_fetch.js]
-    SF -- "搜索/下载" --> N[ncm :3001]
-    W -- "spawn after scene ok" --> BP[build_playlist_from_result.js]
-    BP -- "TTS + lame 拼接" --> MP3[intro.mp3 + song.mp3<br/>→ stitched.mp3]
-  end
+### 依赖
+
+- Node.js ≥ 20
+- 系统包：`lame`（MP3 解码/编码，TTS 拼接时需要）
+- 网易云 sidecar：另起一个 `NeteaseCloudMusicApi` 在 `:3001`（提供登录、搜索、下载 URL 解析）
+- 可选：QWeather API key（不配也能用，fallback 到本地温度/湿度）
+- 可选：MiniMax API token（不配 → LLM fallback 到固定关键词 + 旧 intro 模板）
+
+```bash
+# Ubuntu
+sudo apt-get install -y lame
+
+# macOS
+brew install lame
+
+# 网易云 sidecar（另开一个终端 / 用 pm2 之类）
+git clone https://github.com/Binaryify/NeteaseCloudMusicApi
+cd NeteaseCloudMusicApi && npm install && PORT=3001 node app.js
 ```
 
-## Web UI 页面
+### 启动
 
-| 路径 | 标题 | 用途 |
+```bash
+git clone https://github.com/llinzzi/192fm
+cd 192fm
+npm install
+node server.js          # 主进程 :3000
+node scripts/dj_worker.js   # 场景任务后台（另开终端 / 配 watchdog）
+```
+
+打开 `http://localhost:3000/` 看首页；`/dj` 是 DJ Agent 控制台。
+
+### 第一次跑
+
+1. 进 `/settings`：
+   - **天气** 选你的城市 / 改 API key
+   - **minimax** 填 API token（或用 `~/.mmx/config.json` 里 `mmx auth` 配的那个）
+   - **曲库** 改 `stationsDir` 到你放 mp3 的目录
+2. 进 `/dj`：
+   - 给 `morning` / `evening` 勾上"启用定时" + 调好时间
+   - 点 🏃 立即跑一次验证
+3. ESP32 配 `http://<server>:3000/api/esp/<deviceId>` 即可拉歌。
+
+## 配置
+
+运行时配置全部在 `/settings` UI 里改，落 `config/settings.json`（gitignored）。默认值 hardcoded 在 `server.js` 的 `DEFAULT_SETTINGS`。
+
+| 分组 | 字段 | 说明 |
 |------|------|------|
-| `/` | 🎧 192电台 | 首页 + 当前歌 |
-| `/dj` | 🎧 DJ Agent | 控制台：intro prompts + 场景任务管理 |
-| `/library` | 📀 网易云收藏 | 曲目库（按歌单分组） |
-| `/temps` | 🌡️ 温湿度图表 | 设备上传的温湿度 + QWeather 基线 |
-| `/log` | 📋 API 日志 | 所有 API 请求录制（自动刷新） |
-| `/settings` | ⚙️ 设置 | 天气城市/API key, minimax token, 曲库目录 |
+| **天气** | host | QWeather 反代域名，默认 `nn3aaqw4wr.re.qweatherapi.com` |
+| | apiKey | 默认值已可工作；自己的 key 优先 |
+| | 当前城市 | 在 UI 搜索，存到 `config/weather.json` |
+| **minimax** | apiKey | LLM + TTS 共用 token；fallback 到 `~/.mmx/config.json` |
+| | anthropicBase | LLM endpoint |
+| | anthropicModel | 默认 `MiniMax-M3` |
+| | ttsBase / ttsModel / ttsVoice | TTS 三个字段 |
+| **曲库** | stationsDir | 单电台模式的 mp3 目录 |
 
-所有页面使用共享 `partials/_nav.ejs`，6 项固定顺序：
+文件级配置（gitignored，需手动改）：
+
+| 文件 | 内容 |
+|------|------|
+| `config/weather.json` | 当前城市（`{locationId, locationName, adm1, adm2}`） |
+| `config/schedule.json` | 定时任务列表（也被 `/dj` UI 写） |
+| `config/settings.json` | 运行时配置（API key 等） |
+| `config/device_readings.json` | 温湿度历史（lowdb） |
+| `data/history_playlists/<scene>.json` | 每个场景已采纳过的 NCM 歌单 ID（去重用） |
+| `data/scene_audit/<scene>.jsonl` | 每次场景任务的 audit log（append-only） |
+
+## 场景任务（DJ Agent）
+
+DJ Agent 的核心是 `config/intro_prompts.json` 里的几组 prompt（全部可编辑）：
+
+| 字段 | 触发时机 | 作用 |
+|------|----------|------|
+| `system_template` / `user_template` | 每次 build playlist | 给 LLM 写每首歌的播报词 |
+| `keyword_generator` | scene-fetch 之前 | 让 LLM 基于场景 + 历史生成搜索词 |
+| `playlist_selector` | NCM 返回候选后 | 让 LLM 从候选里选 1 个歌单 |
+| `scene_hints` | 每次触发 | 场景的搜索关键词 + LLM 标签 + 定时 + 音量 |
+
+完整的 12 步管线：
 
 ```mermaid
-graph LR
-  H[🎧 192电台] --> DJ[🎛 DJ Agent] --> L[📀 曲目库] --> T[🌡 温湿度] --> LG[📋 日志] --> S[⚙️ 设置]
+sequenceDiagram
+  participant C as crontab / 🏃
+  participant S as server.js
+  participant W as dj_worker
+  participant SF as scene_fetch
+  participant NCM as :3001
+  participant LLM as MiniMax
+  participant TTS as MiniMax TTS
+  participant LAME as lame
+  participant F as .radio_playlist
+
+  C->>S: POST /api/dj/trigger {scene, volume}
+  S->>S: currentVolume = volume; saveState()
+  S->>F: write trigger
+  W->>F: poll → detect trigger
+  W->>SF: spawn scene_fetch.js (DJ_SCENE=xxx)
+  SF->>S: GET /api/weather (cached, 1 min TTL)
+  SF->>LLM: 1) 场景 + 历史 → 搜索词 (keyword_generator)
+  SF->>NCM: searchPlaylists(kw, 10)  ×  多个 kw
+  SF->>LLM: 2) 候选列表 → 选 1 个歌单 (playlist_selector)
+  SF->>NCM: playlist.detail → 歌单曲目
+  SF->>NCM: download url × 20
+  SF->>F: playlist.json
+  W->>BP: spawn build_playlist_from_result.js
+  BP->>LLM: 3) 20 首歌 + weather → 20 个 intro (batch)
+  BP->>TTS: 4) intro × 20 → mp3
+  BP->>LAME: 5) decode → mono2stereo → re-encode (44.1kHz)
+  BP->>F: 6) stitch: intro+mp3 → stitched/<n>.mp3
+  BP->>F: current.json 原子切换
 ```
 
-客户端 JS 自动按 `pathname` 给当前页面高亮 `.active`。
+Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用三段策略自动解析：
+1. **JSON array**: `[{"name":"...", "intro":"..."}, ...]`
+2. **Strategy 2**: 按 `《歌名》` 归 paragraph
+3. **Strategy 3**: token fingerprint
+4. **fallback**: `接下来请欣赏《${name}》`
 
-## API Endpoints
+## API 一览
 
 ### 播放器 / ESP32
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/esp` | ESP32 拿一首歌 + 接收温湿度 `?t=24.5&h=65` |
-| GET | `/api/esp/:deviceId` | 按设备持久化偏好（最近一首、跳过的歌） |
-| GET | `/api/time` | 服务器时间 |
-| GET | `/api/weather` | 当前天气（走 1min 缓存，返回 daily[]） |
-| GET | `/api/volume` | 当前音量 (1-100) |
-| POST | `/api/volume` `{volume}` | 设置全局音量 |
-| GET | `/api/devices` | 所有已知 ESP 设备 |
-| POST | `/api/devices/:id/seek` | 设备 seek 到下一首 |
-| POST | `/api/select-next` `{playlist, index}` | 跳到指定 index |
-| POST | `/api/reshuffle` | 重洗当前歌单 |
-| GET | `/api/tts-intro` | 当前 TTS 介绍 |
+| `GET` | `/api/esp/:deviceId` | 拉下一首歌 + 实时天气；`?t=X&h=Y` 顺带传温湿度 |
+| `GET` | `/api/time` | 服务器时间 |
+| `GET` | `/api/weather` | 实时天气（走 1 min 缓存） |
+| `GET` | `/api/volume` / `POST /api/volume` | 当前音量 (1-100) |
 
-### DJ Agent 控制台
+### DJ Agent
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/dj/status` | 当前 dj_worker 任务状态 |
-| POST | `/api/dj/trigger` `{batch, scene, persona?, volume?}` | 触发场景任务 + 立即应用音量 |
-| POST | `/api/dj/cancel` | 取消运行中任务 |
-| GET | `/api/dj/intro-prompts` | 当前 prompts + scene_hints |
-| POST | `/api/dj/intro-prompts` | 保存 prompts |
-| GET | `/api/schedule` | 当前定时列表 |
-| POST | `/api/schedule` `{items}` | 保存定时（带 volume），自动写 crontab |
-| POST | `/api/schedule/install` | 仅重写 crontab |
+| `POST` | `/api/dj/trigger` | 触发场景任务 `{batch, scene, volume?}` |
+| `POST` | `/api/dj/cancel` | 取消运行中任务 |
+| `GET` | `/api/dj/status` | 当前 worker 任务状态 |
+| `GET` / `POST` | `/api/dj/intro-prompts` | 编辑 LLM prompt 模板 |
+| `GET` / `POST` | `/api/schedule` | 定时任务列表 |
 
-### 曲库
+### 曲库 / 设置
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/library` | 所有歌单概览（按 playlist 分组） |
-| GET | `/api/library/:id` | 单歌单歌曲列表 |
-| GET | `/api/netease/search?q=` | 搜网易云 |
-| GET | `/api/netease/play/:id` | 单曲 mp3 流 |
+| `GET` | `/api/library` | 所有歌单概览（按 playlist 分组） |
+| `GET` | `/api/library/:id` | 单歌单歌曲列表 |
+| `GET` | `/api/netease/search?q=` | 搜网易云 |
+| `GET` / `POST` | `/api/settings` | 读写运行时配置（apiKey masked） |
+| `GET` / `POST` | `/api/weather/location` | 城市切换 |
+| `GET` | `/api/weather/lookup?q=` | 城市搜索（QWeather 地理编码） |
 
 ### 温湿度 / 日志
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/devices/list` | 有数据的设备列表 |
-| GET | `/api/readings` | 温湿度历史（时间窗/聚合/分设备） |
-| GET | `/api/log` | API 日志 |
-| POST | `/api/log/clear` | 清空日志 |
+| `GET` | `/api/devices/list` | 设备列表（按 IP 区分） |
+| `GET` | `/api/readings` | 温湿度历史 |
+| `GET` / `POST` | `/api/log` | API 日志 |
 
-### 设置
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/settings` | 当前配置（apiKey masked） |
-| POST | `/api/settings` | 修改配置（部分更新，空串=清除） |
-| GET | `/api/weather/location` | 当前天气城市 |
-| POST | `/api/weather/location` | 切换城市 |
-| GET | `/api/weather/lookup?q=` | 搜索城市（QWeather 地理编码） |
-
-### 音频流
+### 音频
 
 | 路径 | 说明 |
 |------|------|
 | `/audio/local/track/<name>` | 本地 mp3（带 Range） |
-| `/audio/playlist-stitched/<stamp>/<n>.mp3` | TTS intro + 歌拼接 |
+| `/audio/playlist-stitched/<stamp>/<n>.mp3` | intro+歌 拼接好的 mp3 |
 | `/audio/playlist-intro/<stamp>/<n>.mp3` | 单首 TTS intro |
 
-## 场景任务管线
+## Web UI
 
-```mermaid
-sequenceDiagram
-  participant C as crontab / 🏃 手动
-  participant S as server.js
-  participant Q as queue_state.json
-  participant W as dj_worker
-  participant SF as scene_fetch.js
-  participant N as NCM :3001
-  participant LLM as MiniMax-M3
-  participant BP as build_playlist.js
-  participant TTS as MiniMax TTS
-  participant L as lame
+| 路径 | 标题 | 说明 |
+|------|------|------|
+| `/` | 🎧 192电台 | 首页 + 当前歌 + 设备选择 |
+| `/dj` | 🎛 DJ Agent | 场景任务管理 + LLM prompt 编辑 |
+| `/library` | 📀 网易云收藏 | 曲目库（按歌单分组） |
+| `/temps` | 🌡 温湿度图表 | 多设备温度/湿度时间线 |
+| `/log` | 📋 API 日志 | 所有 API 请求录制（IP/URL/method/status 筛选） |
+| `/settings` | ⚙ 设置 | 天气城市 / API key / 曲库目录 |
 
-  C->>S: POST /api/dj/trigger {scene, volume}
-  S->>S: currentVolume = volume; saveState()
-  S->>Q: write trigger
-  W->>Q: poll → detect trigger
-  W->>SF: spawn scene_fetch.js (DJ_SCENE=xxx)
-  SF->>N: search NCM playlists
-  N-->>SF: song candidates
-  SF->>LLM: 20 songs + weatherToday/Tomorrow → system+user prompts
-  LLM-->>SF: 20 intro paragraphs
-  SF->>N: download MP3s
-  SF->>Q: write playlist.json
-  SF-->>W: exit 0
-  W->>BP: spawn build_playlist_from_result.js
-  BP->>TTS: 20 × synthesize intro speech
-  TTS-->>BP: 20 × intro.mp3 (32kHz mono)
-  BP->>L: lame decode → mono2stereo → lame re-encode (44.1kHz stereo)
-  BP->>Q: write stitched/*.mp3
-  BP-->>W: done
-  W->>Q: mark complete
+## 后台进程
+
+无 systemd（无 sudo），用 crontab `@reboot` 起 3 个 watchdog：
+
+```cron
+@reboot /home/zulin/ncm-api/ncm-watchdog.sh >/dev/null 2>&1
+@reboot /home/zulin/radio_streams/radio-watchdog.sh >/dev/null 2>&1
+@reboot /home/zulin/radio_streams/dj-worker-watchdog.sh >/dev/null 2>&1
 ```
 
-### Intro 解析器（worker 兼容层）
-
-LLM 输出格式不固定，worker 用三段策略自动解析：
-
-1. **JSON array**: `[{"name":"...", "intro":"..."}, ...]`  
-2. **Strategy 2 (paragraph attribution)**: 按 `《歌名》` 归 paragraph  
-   - Pattern (a) `《name》`（优先）  
-   - Pattern (b) bare name 匹配（处理歌名含 `《》` 的情况）  
-3. **Strategy 3 (token fingerprint)**: 歌名按 `_ - 空格 ( )` 拆，取最长 token 做 substring  
-4. **fallback**: `接下来请欣赏《${name}》` 兜底  
-
-## 天气统一缓存
-
-```mermaid
-graph TB
-  subgraph "server.js 内部"
-    FD[fetchWeatherData<br/>→ QWeather Now + 7d] --> CACHE[_weatherCache<br/>TTL = 60s]
-    CACHE --> GW[getWeather]
-    GW --> MR[maybeRecordWeather<br/>interval 5min<br/>去重: hourKey]
-    GW --> AEW[/api/weather<br/>HTTP handler]
-    GW --> TTS[playback / LLM context<br/>(/api/esp)]
-  end
-
-  subgraph "dj_worker.js"
-    SFW[scene_fetch.js<br/>fetchWeather7d] -->|http://127.0.0.1:3000/api/weather| AEW
-  end
-
-  subgraph "外部"
-    AEW -->|GET /api/weather| UI[Browser / Temps]
-    MR -->|hourly| DB[device_readings.json<br/>device_id=qweather]
-  end
-
-  subgraph "配置"
-    S[/api/settings POST] -- 清缓存 --> CACHE
-    WLOC[/api/weather/location POST] -- 清缓存 --> CACHE
-  end
-```
-
-**关键规则**：
-- 调用 `getWeather()` 时若缓存 < 1 分钟 → 直接返回，**不调 QWeather**  
-- 超过 1 分钟 → 异步拉 QWeather + 更新缓存  
-- 拉失败 → 返回 stale cache（不抛错，不拖慢播歌）  
-- **`/api/weather` 也走缓存**（原来直接调 QWeather，现在共享缓存的同一份数据）  
-- worker (`build_playlist_from_result.js`) 的 `fetchWeather7d()` 调用本地服务器 `/api/weather`，不额外调 QWeather  
-- 改城市 / API key → 清缓存，下次强制重拉  
-
-**实际 API 调用频率**：每分钟最多 1 次 QWeather 调用（通常每小时 1 次，因为 `maybeRecordWeather` 按 hourKey 去重）。
-
-## 温湿度采集
-
-```mermaid
-graph LR
-  subgraph "数据入口"
-    ESP[ESP32<br/>拉歌时带 t=24.5&h=65] --> AEE[GET /api/esp<br/>或 /api/esp/:deviceId]
-    QW[QWeather<br/>每小时自动记录] --> MR[maybeRecordWeather<br/>→ device_id=qweather]
-  end
-
-  AEE --> REC[recordReading<br/>设备 IP 自动识别<br/>(strip ::ffff:)]
-  MR --> REC
-
-  REC --> LOW[lowdb<br/>config/device_readings.json<br/>每设备 ≤ 1440 条]
-
-  LOW --> UI[/temps<br/>Chart.js + IP 下拉<br/>聚合采样]
-```
-
-- `POST /api/readings` 已删除（唯一入口是 `/api/esp/*` 的 query params）  
-- 设备不需要额外 HTTP 请求，拉歌时带 `?t=X&h=Y` 即可  
-- also accepts `temperature`/`humidity` (long form) 作为 fallback
-
-## 设置中心
-
-```
-/settings
-├── 📍 天气
-│   ├── 当前城市卡片 (名/省份/市/ID)
-│   ├── 「更改」→ 搜索城市 (QWeather GeoAPI lookup)
-│   └── 🔑 API 配置
-│       ├── API Key (password, masked, 可选)
-│       └── Host (反代域名)
-│
-├── 🤖 minimax (LLM + TTS)
-│   ├── API Token (password, masked, fallback ~/.mmx/config.json)
-│   ├── Anthropic Base / Model
-│   └── TTS Base / Model / Voice
-│
-└── 📀 曲库
-    └── stationsDir (路径 + 探测按钮)
-```
-
-**数据持久化**: `config/settings.json` (gitignored, per-host) + `DEFAULT_SETTINGS` (hardcoded 在 server.js 与 worker.js)
-
-**安全**:  
-- GET `/api/settings` 返回 `apiKey: {set: true|false, preview: "sk-cp-…9IBs"}` — **不回显完整 key**  
-- POST 发空串 `= 清除`，发 `…` 串 `= no-op`（防 UI 误把 mask 当 key 发送）  
-- 如果 `/api/settings` 里不填 minimax key，自动 fallback 到 `~/.mmx/config.json`
-
-## 自动化与开机自启
-
-```mermaid
-graph TB
-  subgraph "@reboot (crontab)"
-    RW[radio-watchdog.sh<br/>每 5s pgrep server] --> S[server.js]
-    DW[dj-worker-watchdog.sh<br/>每 5s pgrep worker] --> W[dj_worker.js]
-    NW[ncm-watchdog.sh<br/>每 5s pgrep ncm] --> N[ncm :3001]
-  end
-
-  subgraph "定时场景 (crontab)"
-    M[0 23 * * *<br/>TZ=Asia/Shanghai<br/>Beijing 07:00] -->|POST /api/dj/trigger| S
-    E[0 13 * * *<br/>TZ=Asia/Shanghai<br/>Beijing 21:00] -->|POST /api/dj/trigger| S
-  end
-
-  subgraph "健康检查"
-    HC[*/5 * * * *<br/>worker_healthcheck.sh] --> W
-  end
-```
-
-- 无 systemd（zulin 无 sudo，user systemd 缺 linger）  
-- 所有 `@reboot` 用绝对 `node` 路径 `/home/zulin/.nvm/versions/node/v20.20.2/bin/node`  
-- server 启动后自动 reload crontab（`POST /api/schedule` 触发时改写）
-
-## 文件布局
-
-```
-radio_streams/
-├── server.js                 # Express 主服务（~2600 行，~55 endpoints）
-├── package.json
-├── scripts/
-│   ├── dj_worker.js          # daemon — 监听 trigger
-│   ├── scene_fetch.js        # 搜歌 + LLM + 下载
-│   ├── build_playlist_from_result.js  # TTS → lame 拼接
-│   ├── mono2stereo.js        # mono → stereo 升混
-│   ├── generate_playlist.js  # 本地 fallback（无 NCM）
-│   ├── scheduled_runner.js   # 旧版 crontab 写表
-│   ├── radio-watchdog.sh     # 保活 server
-│   ├── dj-worker-watchdog.sh # 保活 dj_worker
-│   ├── worker_healthcheck.sh # 5min 健康检查
-│   ├── restart_server.sh     # 杀旧 PID → 后台起新
-│   └── lib/
-│       ├── netease_dl.js     # 网易云下载包装
-│       ├── scenes_index.js   # 场景 index
-│       └── scene_audit.js    # 场景命中统计
-├── views/
-│   ├── index.ejs             # 首页
-│   ├── admin_dj.ejs          # /dj DJ Agent 控制台
-│   ├── library.ejs           # /library 曲目库
-│   ├── temps.ejs             # /temps 温湿度
-│   ├── log.ejs               # /log API 日志
-│   ├── settings.ejs          # /settings 设置中心
-│   └── partials/
-│       └── _nav.ejs          # 共享导航栏（所有页面 include）
-├── config/
-│   ├── schedule.json          # 定时任务
-│   ├── intro_prompts.json    # LLM prompt + scene_hints
-│   ├── settings.json         # 运行时配置（gitignored）
-│   ├── weather.json          # 天气城市（gitignored）
-│   ├── dj_vibes.json
-│   ├── scenes/{morning,night,sport,play}.json
-│   └── device_readings.json  # 温湿度 lowdb（gitignored）
-├── .radio_playlist/          # 运行时数据（gitignored）
-│   ├── worker.log
-│   ├── worker.pid
-│   └── <stamp>/
-│       ├── playlist.json
-│       ├── intros/
-│       ├── stitched/
-│       └── progress.json
-├── .gitignore
-└── README.md
-```
-
-## 依赖
+每个 watchdog 每 5 秒 `pgrep`，死了就重启。手动起也可以：
 
 ```bash
-# 系统
-apt-get install -y lame   # MP3 解码/编码（TTS intro 拼接必要）
-
-# Node
-npm install
-# express ^4.18.0, ejs ^3.1.0, lowdb ^1.0.0
+node server.js
+node scripts/dj_worker.js
+PORT=3001 node node_modules/NeteaseCloudMusicApi/app.js  # 网易云 sidecar
 ```
-
-> lowdb 替代了 better-sqlite3 — 192 上无 build-essential / python3-dev，原生模块编译失败。
 
 ## 常见操作
 
 ```bash
-# 重启 server（2 秒内）
+# 重启主进程
 cd ~/radio_streams && bash scripts/restart_server.sh
+
+# 重启 worker
+pkill -9 -f dj_worker.js && sleep 5  # watchdog 自动拉起
 
 # 手动跑 morning 场景（音量 5）
 curl -X POST -H "Content-Type: application/json" \
   -d '{"batch":"manual","scene":"morning","volume":5}' \
   http://127.0.0.1:3000/api/dj/trigger
 
-# 看天气城市
-curl -s http://127.0.0.1:3000/api/weather/location | python3 -m json.tool
-
-# 改天气城市为临平（无需重启）
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"locationId":"101210104","locationName":"临平","adm1":"浙江","adm2":"杭州"}' \
-  http://127.0.0.1:3000/api/weather/location
-
-# 查任务状态
-curl -s http://127.0.0.1:3000/api/dj/status | python3 -m json.tool
+# 取消任务
+curl -X POST http://127.0.0.1:3000/api/dj/cancel
 
 # 看 worker 日志
 tail -f .radio_playlist/worker.log
 
-# 取消任务
-curl -X POST http://127.0.0.1:3000/api/dj/cancel
+# 查任务状态
+curl -s http://127.0.0.1:3000/api/dj/status | python3 -m json.tool
 
-# 列出最近任务
-ls -lt .radio_playlist/ | head -5
+# 调试 LLM prompt（不重跑场景）
+python3 scripts/intro-tester.py --playlist .radio_playlist/<stamp>/playlist.json
 
-# git push（192 网络不通 GitHub 443，需 Mac 中转）
-git format-patch origin/master..HEAD --stdout > /tmp/relay.patch
-# 在 Mac: cd /tmp/192fm-mirror && git am /tmp/relay.patch && git push
+# 看 LLM 选歌历史
+cat .radio_playlist/data/scene_audit/morning.jsonl | tail -3 | python3 -m json.tool
 ```
 
 ## 已知坑
 
-- **192 时区 UTC** — 调试 cron 问题第一件事 `date && timedatectl`  
-- **lame 必须系统包** — `apt-get install -y lame`，否则 stitching 全挂  
-- **9p 死锁** — 一次 stat 太多 mp3 会卡死（单曲库目录没事）  
-- **scene_fetch LLM 格式不固定** — 三段 strategy parser 兜底  
-- **192 → GitHub 443 超时** — 需 Mac 中转推送（`git format-patch` → `git am`）  
-- **`~/.mmx/config.json` 是 fallback** — minimax key 在 Settings 里不改就用 mmx CLI 的 key  
-- **POST 改 `/api/settings` 不清 TTS 缓存** — 下次 scene-fetch 才用新 token
+- **192 时区 UTC** — 所有日期/时间字段先转 `Asia/Shanghai` 再格式化。早期版本直接用 `Date.getDate()` 会跨天错位。
+- **lame 必须系统包** — `apt-get install -y lame`，否则 stitching 全挂。
+- **9p 死锁** — 一次 stat 太多 mp3 会卡死（单曲库目录没事，几千首内 OK）。
+- **scene_fetch LLM 格式不固定** — 三段 strategy parser 兜底。
+- **192 → GitHub 443 超时** — push 需 Mac 中转（`git format-patch` → `git am`）。
+- **`/api/esp` 响应必须 < 2KB** — ESP32 malloc 2KB buffer，lean weather 字段（不带 daily[]）刚好 240B。
+- **POST `/api/settings` 不清 TTS 缓存** — 下次 scene-fetch 才用新 token。
+
+## 开发
+
+```bash
+# 全栈语法检查
+node -c server.js
+for f in scripts/*.js scripts/lib/*.js; do node -c "$f"; done
+
+# 跑 LLM 历史 audit
+tail -1 .radio_playlist/llm_history.jsonl | python3 -m json.tool
 ```
 
+主要文件位置：
+
+- `server.js` (≈3000 行) — Web + API + 音频 + 天气缓存
+- `scripts/dj_worker.js` — 场景任务后台
+- `scripts/scene_fetch.js` + `scripts/scene_playlist_search.js` — 搜歌
+- `scripts/build_playlist_from_result.js` — LLM + TTS + lame 拼接
+- `scripts/lib/llm_helper.js` — 共享 LLM 调用
+- `scripts/lib/netease_dl.js` — 网易云下载
+- `views/partials/_nav.ejs` — 共享导航栏
+- `views/admin_dj.ejs` — DJ Agent 控制台 (最大页面)
+
+### 提交规范
+
+每个 commit 只做一件事，commit message 第一行用 `动词 名词` 形式（如 `Fix /api/esp returning empty weather`），下面写 1-2 段 `why` 而不是 `what`。
+
+### 加一个新的 endpoint
+
+1. `server.js` 里 `app.get/post(...)`
+2. 如果数据要从 `.radio_playlist/current.json` 取 → 用 `loadCurrentPlaylist()`
+3. 如果会泄露 API key → 通过 `maskKey()` 返回 masked 形状
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2026 llinzzi

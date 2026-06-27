@@ -1,7 +1,7 @@
 {
   "name": "radio-streams",
   "version": "1.0.0",
-  "description": "Radio stream current song display server",
+  "description": "床头广播盒子的服务端：LLM 选歌 + TTS 播报词 + 网易云下载 + ESP32 拉歌",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -19,5 +19,23 @@
     "express": "^4.18.0",
     "lowdb": "^1.0.0",
     "sql.js": "^1.14.1"
-  }
+  },
+  "license": "MIT",
+  "author": "llinzzi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/llinzzi/192fm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/llinzzi/192fm/issues"
+  },
+  "homepage": "https://github.com/llinzzi/192fm",
+  "keywords": [
+    "radio",
+    "jukebox",
+    "netease",
+    "llm",
+    "tts",
+    "esp32"
+  ]
 }
