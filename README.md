@@ -81,7 +81,7 @@ graph TB
 
 - Node.js ≥ 20
 - 系统包：`lame`（MP3 解码/编码，TTS 拼接时需要）
-- 网易云 sidecar：另起一个 `NeteaseCloudMusicApi` 在 `:3001`（提供登录、搜索、下载 URL 解析）
+- 网易云 sidecar：通过 npm 安装 [`NeteaseCloudMusicApi`](https://www.npmjs.com/package/NeteaseCloudMusicApi) 包，跑到 `:3001`（提供登录、搜索、下载 URL 解析）
 - 可选：QWeather API key（不配也能用，fallback 到本地温度/湿度）
 - 可选：MiniMax API token（不配 → LLM fallback 到固定关键词 + 旧 intro 模板）
 
@@ -92,9 +92,10 @@ sudo apt-get install -y lame
 # macOS
 brew install lame
 
-# 网易云 sidecar（另开一个终端 / 用 pm2 之类）
-git clone https://github.com/Binaryify/NeteaseCloudMusicApi
-cd NeteaseCloudMusicApi && npm install && PORT=3001 node app.js
+# 网易云 sidecar（另开一个终端 / 用 pm2 / 用 systemd / 用下面的 watchdog）
+mkdir -p ~/ncm-api && cd ~/ncm-api
+npm install NeteaseCloudMusicApi
+PORT=3001 exec node node_modules/NeteaseCloudMusicApi/app.js
 ```
 
 ### 启动
