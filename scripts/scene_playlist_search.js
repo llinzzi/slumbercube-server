@@ -213,15 +213,30 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
   return null;
 }
 
-// Chinese date/weekday helpers (mirrored from build_playlist for parity)
+// Chinese date/weekday helpers (mirrored from build_playlist for parity).
+// Use Asia/Shanghai (UTC+8) instead of the process's local timezone —
+// 192 is UTC, so without this a morning trigger at 23:00 UTC
+// (= 07:00 next day Beijing) would still show the UTC date.
 function getChinaDate() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}年${m}月${d}日`;
 }
 const WEEKDAY_NAMES_CN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+const EN_WEEKDAY_MAP = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+};
 function getChinaWeekday() {
-  return WEEKDAY_NAMES_CN[new Date().getDay()];
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai', weekday: 'long',
+  }).format(new Date());
+  return WEEKDAY_NAMES_CN[EN_WEEKDAY_MAP[wd]] || WEEKDAY_NAMES_CN[0];
 }
 
 /** Collect all playlist ids ever adopted, across all scenes. */

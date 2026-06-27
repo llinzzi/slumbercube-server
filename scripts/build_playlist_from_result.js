@@ -296,14 +296,32 @@ function formatWeatherLine(day) {
 }
 
 // Chinese date/weekday helpers for ${todayDate} / ${weekday} template vars
+// Chinese date/weekday helpers for the ${todayDate} / ${weekday} template
+// vars. The 192 server runs in UTC, so we use Intl.DateTimeFormat to
+// project the moment into Asia/Shanghai (UTC+8) before formatting.
+// Without this, a trigger that fires at 23:00 UTC (= 07:00 next day
+// Beijing) would still show the UTC date (26) instead of the Beijing
+// date (27).
 function getChinaDate() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}年${m}月${d}日`;
 }
-const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+const WEEKDAY_NAMES_CN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+const EN_WEEKDAY_MAP = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+};
 function getChinaWeekday() {
-  return WEEKDAY_NAMES[new Date().getDay()];
+  const weekdayStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai', weekday: 'long',
+  }).format(new Date());
+  return WEEKDAY_NAMES_CN[EN_WEEKDAY_MAP[weekdayStr]] || WEEKDAY_NAMES_CN[0];
 }
 
 // anthropicChat now delegates to the shared helper (scripts/lib/llm_helper.js)
