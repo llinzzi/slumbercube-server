@@ -1,7 +1,7 @@
 {
-  "name": "radio-streams",
+  "name": "slumber-cube-server",
   "version": "1.0.0",
-  "description": "床头广播盒子的服务端：LLM 选歌 + TTS 播报词 + 网易云下载 + ESP32 拉歌",
+  "description": "安睡小方 Server：床头 ESP32 设备配套服务端，LLM 选歌 + TTS 播报词 + 网易云下载 + 定时场景任务",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -24,12 +24,12 @@
   "author": "llinzzi",
   "repository": {
     "type": "git",
-    "url": "https://github.com/llinzzi/192fm.git"
+    "url": "https://github.com/llinzzi/slumber-cube-server.git"
   },
   "bugs": {
-    "url": "https://github.com/llinzzi/192fm/issues"
+    "url": "https://github.com/llinzzi/slumber-cube-server/issues"
   },
-  "homepage": "https://github.com/llinzzi/192fm",
+  "homepage": "https://github.com/llinzzi/slumber-cube-server",
   "keywords": [
     "radio",
     "jukebox",

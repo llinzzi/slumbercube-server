@@ -1318,7 +1318,7 @@ app.get('/api/esp', async (req, res) => {
 
     return res.json({
       song: song.name,
-      name: pl.playlist_name || pl.name || '192电台',
+      name: pl.playlist_name || pl.name || '安睡小方电台',
       url,
       volume: currentVolume,
       weather: respWeather,
@@ -1540,7 +1540,7 @@ app.get('/api/esp/:deviceId', async (req, res) => {
 
   res.json({
     song: song.name,
-    name: pl.playlist_name || pl.name || '192电台',
+    name: pl.playlist_name || pl.name || '安睡小方电台',
     url,
     volume: currentVolume,
     weather: respWeather,
@@ -2349,7 +2349,7 @@ app.post('/api/dj/intro-prompts', express.json({ limit: '64kb' }), (req, res) =>
 // Cron writer is non-destructive: it preserves any existing crontab
 // lines that don't carry the SCHEDULE_TAG marker.
 const SCHEDULE_PATH = path.join(__dirname, 'config', 'schedule.json');
-const SCHEDULE_TAG = '# radio_streams: schedule (auto)';
+const SCHEDULE_TAG = '# slumber-cube-server: schedule (auto)';
 
 const SCHEDULE_DEFAULTS = {
   items: [
@@ -2406,7 +2406,7 @@ function rewriteCrontab(items) {
   let existing = '';
   try { existing = execSyncSafe('crontab -l 2>/dev/null'); } catch (_) {}
 
-  // Strip our tag lines AND old 192fm curl-trigger lines (no tag, just
+  // Strip our tag lines AND old 192fm-era curl-trigger lines (no tag, just
   // /api/dj/trigger curl pattern) so we never double-schedule.
   const isOurs = (l) =>
     l.includes(SCHEDULE_TAG) ||
@@ -2423,7 +2423,7 @@ function rewriteCrontab(items) {
     execSyncSafe(`bash -c 'printf %s "${combined.replace(/"/g, '\\"')}" | crontab -'`);
   } catch (e) {
     // Fallback: write to temp file, then crontab that file
-    const tmpFile = '/tmp/.crontab-192fm';
+    const tmpFile = '/tmp/.crontab-slumber-cube';
     fs.writeFileSync(tmpFile, combined);
     execSyncSafe(`crontab ${tmpFile}`);
     fs.unlinkSync(tmpFile);

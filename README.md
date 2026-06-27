@@ -1,4 +1,4 @@
-# 192fm · radio_streams
+# 安睡小方 Server · Slumber Cube Server
 
 > 床头广播盒子的服务端。把网易云收藏 / 定时场景任务 / LLM 生成的播报词 / TTS / ESP32 拉歌 串成一条全自动链路，再加上一组本地可视化的管理后台。
 
@@ -11,7 +11,7 @@
 
 ## 这是什么
 
-`192fm` 是一个跑在一台小服务器（默认 `192.168.8.192`，所以叫 192）上的 Node.js 服务。它每天自动从网易云下载合适的歌 → 让 LLM 写一段贴合天气和场景的播报词 → TTS 合成 → 拼接成可直接播放的 mp3 → 房间里的 ESP32 设备（OLED 屏 + 小喇叭）定时拉一首播。
+`安睡小方 Server` (Slumber Cube Server) 是一个跑在一台小服务器（默认 `192.168.8.192`）上的 Node.js 服务，配套床头 ESP32 设备使用。它每天自动从网易云下载合适的歌 → 让 LLM 写一段贴合天气和场景的播报词 → TTS 合成 → 拼接成可直接播放的 mp3 → 房间里的 ESP32 设备（OLED 屏 + 小喇叭）定时拉一首播。
 
 所有"智能"的部分（选歌、选歌单、写词）都可被替换成固定配置运行，所以即使 LLM / TTS 全部挂掉，整个链路也只会 fallback 到老的"按 score 排序"逻辑继续工作。
 
@@ -101,8 +101,8 @@ PORT=3001 exec node node_modules/NeteaseCloudMusicApi/app.js
 ### 启动
 
 ```bash
-git clone https://github.com/llinzzi/192fm
-cd 192fm
+git clone https://github.com/llinzzi/slumber-cube-server
+cd slumber-cube-server
 npm install
 node server.js          # 主进程 :3000
 node scripts/dj_worker.js   # 场景任务后台（另开终端 / 配 watchdog）
@@ -250,7 +250,7 @@ Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用�
 
 | 路径 | 标题 | 说明 |
 |------|------|------|
-| `/` | 🎧 192电台 | 首页 + 当前歌 + 设备选择 |
+| `/` | 🎧 安睡小方 | 首页 + 当前歌 + 设备选择 |
 | `/dj` | 🎛 DJ Agent | 场景任务管理 + LLM prompt 编辑 |
 | `/library` | 📀 网易云收藏 | 曲目库（按歌单分组） |
 | `/temps` | 🌡 温湿度图表 | 多设备温度/湿度时间线 |
