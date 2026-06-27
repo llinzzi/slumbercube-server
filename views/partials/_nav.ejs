@@ -3,34 +3,10 @@
   the README section "Shared nav" for usage. Active state is
   auto-detected from window.location.pathname on the client, so no
   server-side state is required.
+  Styles live in /css/site.css (and mobile overrides in site-mobile.css).
 -->
-<style>
-  .top-nav {
-    display: flex; align-items: center; gap: 6px;
-    margin-bottom: 16px; padding: 8px 12px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 6px;
-  }
-  .top-nav .nav-home {
-    margin-right: auto; font-weight: 500; color: var(--text);
-    text-decoration: none; font-size: 13px;
-  }
-  .top-nav .nav-home:hover { color: var(--accent); }
-  .top-nav .nav-link {
-    font-size: 12px; padding: 5px 12px;
-    border: 1px solid var(--border); border-radius: 4px;
-    color: var(--text-dim); text-decoration: none;
-    transition: all 0.15s; font-family: inherit;
-  }
-  .top-nav .nav-link:hover { border-color: var(--accent); color: var(--accent); }
-  .top-nav .nav-link.active {
-    border-color: var(--accent); color: var(--accent);
-    background: rgba(34, 197, 94, 0.08);
-  }
-</style>
-
 <nav class="top-nav">
-  <a href="/" class="nav-home">🎧 192电台</a>
+  <a href="/" class="nav-home">🎧 电台</a>
   <a href="/dj" class="nav-link" data-nav="dj">🎛 DJ Agent</a>
   <a href="/library"   class="nav-link" data-nav="library">📀 曲目库</a>
   <a href="/temps"     class="nav-link" data-nav="temps">🌡 温湿度</a>

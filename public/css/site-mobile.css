@@ -1,0 +1,206 @@
+/* ============================================================================
+   site-mobile.css — 移动端适配（≤768px 全部生效）
+   加载顺序：必须在 site.css 之后。
+   策略：不重排业务结构，只改 container / grid / 触摸目标 / 表格次要列。
+   ========================================================================== */
+
+/* ----------- 通用：缩 padding / 改容器 / 改字号 --------------------------- */
+@media (max-width: 768px) {
+  body { padding: 12px; font-size: 14px; }
+
+  .container, .container.wide, .container.medium, .container.narrow {
+    max-width: 100%;
+  }
+
+  h1 { font-size: 18px; margin-bottom: 12px; }
+  h1 small { display: block; margin-left: 0 !important; margin-top: 2px; }
+  .subtitle { font-size: 12px; margin-bottom: 12px; }
+
+  .card { padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+  .card h2 { font-size: 13px; margin-bottom: 10px; }
+
+  /* 触摸目标 ≥ 44px（iOS HIG） */
+  .btn, .input, button, select, input[type="text"], input[type="password"],
+  input[type="search"], input[type="email"], textarea {
+    min-height: 40px;
+  }
+  .btn { padding: 8px 14px; font-size: 13px; }
+
+  /* toast 贴近底部安全区 */
+  .toast { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+
+  /* log 页：monospace 字体 + 12px（覆盖默认 14px） */
+  body:has(.log-entry) { font-size: 12px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+}
+
+/* ----------- 导航：横向滚动兜底，390 以下再压缩 ----------------------- */
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 6px 8px;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .top-nav .nav-home { font-size: 12px; padding: 4px 6px; }
+  .top-nav .nav-link { font-size: 11px; padding: 5px 9px; }
+}
+
+/* ----------- settings / dj / log 里的 .field 表单 grid --------------- */
+@media (max-width: 768px) {
+  /* 140/1fr/auto 三列在 mobile 改成 label 上 + input 整行 */
+  .field {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+  .field label { font-size: 12px; }
+  .field .help { grid-column: 1 !important; margin: 0 0 10px !important; }
+  .field .btn  { width: 100%; }
+}
+
+/* ----------- index.html 的 .player-bar / .weather-card --------------- */
+@media (max-width: 768px) {
+  .player-bar { gap: 8px; padding: 10px 12px; }
+  .player-bar .play-btn { padding: 8px 14px; }
+  .player-bar .now-playing { font-size: 12px; }
+  .player-bar .vol input[type=range] { width: 100px; }
+
+  .weather-card {
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 10px;
+  }
+  .weather-card .weather-left { gap: 12px; flex: 1; min-width: 0; }
+  .weather-card .weather-temp-main { font-size: 24px; }
+  .weather-card .weather-icon { font-size: 28px; }
+  .weather-card .weather-meta {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 11px;
+    justify-content: flex-end;
+  }
+  .weather-card .weather-city,
+  .weather-card .weather-update { text-align: right; }
+}
+
+/* ----------- index.html 的文件表格 .file-table ----------------------- */
+@media (max-width: 768px) {
+  /* 4 列在 390 太挤 → 隐藏 #列和大小的表头，保留歌名 + 试听 */
+  .file-table thead th.num,
+  .file-table tbody td.num     { display: none; }   /* 序号 */
+  .file-table thead th:last-child,
+  .file-table tbody td:last-child { display: none; } /* 大小 */
+  .file-table td, .file-table th { padding: 6px 8px; font-size: 12px; }
+}
+
+/* ----------- library 的 .group + .songs ----------------------------- */
+@media (max-width: 768px) {
+  .group-head { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+  .group-head .name { font-size: 13px; flex-basis: 100%; }
+  .group-head .count { font-size: 11px; }
+  /* mobile：表格允许水平滚动 — 5 列全部显示，但用户可以右滑看「试听」按钮。
+     比强行压缩列宽更可靠（歌名不被压成 2-3 字）。 */
+  .group { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .songs { min-width: 100%; width: max-content; }   /* 表格用内容宽度，撑出可滚区 */
+
+  /* 预览条撑满 */
+  .preview {
+    width: calc(100vw - 16px) !important;
+    padding: 8px 10px !important;
+  }
+  .preview audio { max-width: 100%; }
+}
+
+/* ----------- temps.html 的左/右双栏 → 单栏 -------------------------- */
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .device-panel {
+    position: static !important;
+    padding: 10px !important;
+  }
+  .device-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .chart-card { height: 280px !important; }
+  .stat-strip { flex-wrap: wrap; }
+  .stat { flex-basis: calc(50% - 5px); }
+}
+
+/* ----------- log.html 的 5 列 grid → 单列卡片 ----------------------- */
+@media (max-width: 768px) {
+  .log-head {
+    grid-template-columns: 56px 50px 1fr 40px !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+  .log-head .ip { display: none; }      /* IP 单独列在 mobile 隐藏 */
+  .log-head .url {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .log-body pre { font-size: 10px; }
+}
+
+/* ----------- admin_dj.html 的运行历史 + scene row ------------------- */
+@media (max-width: 768px) {
+  /* persona 4 → 2 列在 720 已经做了，< 480 再 1 列 */
+  .persona-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .persona-card { padding: 12px 8px; }
+  .persona-avatar { width: 48px; height: 48px; font-size: 24px; }
+  .persona-name { font-size: 13px; }
+
+  .action-row .btn { min-width: 0; flex-basis: calc(50% - 4px); }
+
+  /* 当前状态行：badge + 取消任务按钮在窄屏换行 */
+  /* admin_dj 的"当前状态"是 .card > .row 里的 state-badge / grow / #cancel-btn */
+  .card > .row { flex-wrap: wrap; }
+  .card > .row > .grow { flex-basis: 100%; height: 0; }
+  .card > .row > #cancel-btn { width: 100%; margin-top: 4px; }
+
+  /* scene-table 6 列在 mobile 隐藏"运行/删除"两列 */
+  .scene-table-header { display: none; }
+  .scene-row {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+  }
+  .scene-row .col-scene,
+  .scene-row .col-run,
+  .scene-row .col-del {
+    display: inline-flex;
+  }
+  .scene-row .col-run,
+  .scene-row .col-del { justify-self: end; }
+  .scene-row .col-schedule { flex-direction: row; gap: 8px; }
+
+  /* history 6 列变 3 列：序号 + 内容 + 状态 */
+  .history-item {
+    grid-template-columns: 36px 1fr 60px !important;
+    gap: 8px !important;
+    padding: 8px !important;
+  }
+  .history-item .persona-name { display: none; }       /* 第二行文字 */
+  .history-item .col-3,
+  .history-item .col-5 { display: none; }
+}
+
+/* ----------- 极小屏（< 480px）再做一次收紧 --------------------------- */
+@media (max-width: 480px) {
+  body { padding: 10px; font-size: 13px; }
+  h1 { font-size: 17px; }
+  .card { padding: 10px; }
+
+  .player-bar { flex-direction: column; align-items: stretch; }
+  .player-bar .vol { justify-content: center; }
+  .player-bar .now-playing { text-align: center; }
+  .top-nav .nav-home { font-size: 11px; }
+  .top-nav .nav-link { font-size: 10px; padding: 4px 7px; }
+
+  .persona-grid { grid-template-columns: 1fr !important; }
+}

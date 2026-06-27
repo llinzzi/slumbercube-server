@@ -1,0 +1,180 @@
+/* ============================================================================
+   site.css — 公共样式（安睡小方电台所有页面共享）
+   ============================================================================
+   设计 token / 基础 reset / 排版 / 容器 / 通用组件（card/btn/input/badge/
+   section-title/empty/help/meta/subtitle/toast/nav）。
+   页面特有部分（如 #weatherCard、.log-head、.scene-row）留在各自 .ejs 里。
+   ========================================================================== */
+
+:root {
+  --bg: #0d0f14;
+  --surface: #15181f;
+  --surface2: #1c2029;
+  --border: #2a2f3a;
+  --text: #d4d8e0;
+  --text-dim: #6b7280;
+  --accent: #22c55e;
+  --accent-dim: #16a34a;
+  --warn: #f59e0b;
+  --err: #ef4444;
+  --info: #3b82f6;
+  --link: #60a5fa;
+  --temp: #f97316;
+  --hum: #38bdf8;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { overflow-x: hidden; }   /* 防止 grid 撑出横向滚动（mobile 兜底） */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+               'Microsoft YaHei', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 20px;
+  -webkit-text-size-adjust: 100%;
+}
+
+.container { max-width: 800px; margin: 0 auto; }
+.container.wide   { max-width: 1100px; }
+.container.medium { max-width: 960px; }
+.container.narrow { max-width: 760px; }
+
+h1 { font-size: 22px; margin-bottom: 20px; font-weight: 600; }
+h1 span { color: var(--accent); }
+h2 { font-size: 14px; color: var(--text-dim); font-weight: 600; }
+
+.subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+.back { color: var(--text-dim); text-decoration: none; font-size: 12px; }
+.back:hover { color: var(--accent); }
+
+/* ---- card ---------------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2 {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;        /* 页面里有的用 uppercase，在 .ejs 内覆写 */
+  letter-spacing: 0;
+}
+.card .meta { margin-bottom: 12px; }
+
+/* ---- buttons ------------------------------------------------------------- */
+.btn {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; font-weight: 500; }
+.btn-primary:hover:not(:disabled) { background: var(--accent); color: #0d0f14; }
+.btn-danger { color: var(--err); border-color: transparent; }
+.btn-danger:hover:not(:disabled) { border-color: var(--err); color: var(--err); }
+.btn-ghost { background: transparent; }
+
+/* ---- inputs -------------------------------------------------------------- */
+.input, .input-row input[type="text"], .input-row input[type="password"] {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.input:focus, .input-row input:focus { outline: none; border-color: var(--accent); }
+.input.mono { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+
+/* ---- generic helpers ----------------------------------------------------- */
+.meta { color: var(--text-dim); font-size: 12px; }
+.meta strong { color: var(--text); font-weight: 500; }
+.empty { padding: 40px 20px; text-align: center; color: var(--text-dim); font-size: 12px; }
+.help  { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.row   { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > input, .row > select { flex: 1; min-width: 0; }
+
+/* ---- badges -------------------------------------------------------------- */
+.badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
+.badge.ok   { background: #064e3b; color: #6ee7b7; }
+.badge.warn { background: #422006; color: #fbbf24; }
+.badge.err  { background: #450a0a; color: #fca5a5; }
+
+/* ---- toast (settings/dj 通用) ------------------------------------------- */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface); border: 1px solid var(--accent);
+  border-radius: 4px; padding: 10px 16px;
+  font-size: 13px; color: var(--text);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 0; transform: translateY(20px);
+  transition: all 0.25s; z-index: 100;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.err  { border-color: var(--err); color: var(--err); }
+.toast.error{ border-color: var(--err); }
+
+/* ============================================================================
+   Top navigation（_nav.ejs 用的 .top-nav）
+   默认：横向排列 + 横向滚动兜底。mobile @media 在 site-mobile.css 进一步收紧。
+   ========================================================================== */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;        /* 6 个链接在 390px 实在排不下 → 横向滚动兜底 */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;   /* Firefox */
+}
+.top-nav::-webkit-scrollbar { display: none; }   /* hide scrollbar on WebKit */
+
+.top-nav .nav-home {
+  margin-right: auto;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.top-nav .nav-home:hover { color: var(--accent); }
+
+.top-nav .nav-link {
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.top-nav .nav-link:hover    { border-color: var(--accent); color: var(--accent); }
+.top-nav .nav-link.active   { border-color: var(--accent); color: var(--accent); background: rgba(34, 197, 94, 0.08); }

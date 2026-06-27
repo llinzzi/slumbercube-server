@@ -4,20 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API 日志 · 安睡小方电台</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/site-mobile.css">
   <style>
-    :root {
-      --bg: #0d0f14; --surface: #15181f; --surface2: #1c2029;
-      --border: #2a2f3a; --text: #d4d8e0; --text-dim: #6b7280;
-      --accent: #22c55e; --err: #ef4444; --warn: #f59e0b;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-      background: var(--bg); color: var(--text); font-size: 12px;
-      padding: 16px; line-height: 1.5;
-    }
+    /* Log 独有：toolbar / log-entry / log-head grid / log-body / status 颜色 */
     .container { max-width: 1200px; margin: 0 auto; }
     h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+    body {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 12px;
+      padding: 16px;
+      line-height: 1.5;
+    }
     .toolbar {
       display: flex; gap: 8px; margin-bottom: 12px;
       align-items: center; flex-wrap: wrap;
@@ -48,17 +46,12 @@
     }
     .log-head:hover { background: var(--surface2); }
     .log-head .ts { color: var(--text-dim); font-size: 10px; }
-    .log-head .method {
-      font-weight: 700; text-transform: uppercase;
-      color: var(--accent);
-    }
-    .log-head .method.get { color: #60a5fa; }
+    .log-head .method { font-weight: 700; text-transform: uppercase; color: var(--accent); }
+    .log-head .method.get  { color: #60a5fa; }
     .log-head .method.post { color: #f59e0b; }
-    .log-head .url { color: var(--text); word-break: break-all; }
+    .log-head .url { color: var(--text); word-break: break-all; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .log-head .ip { color: var(--text-dim); font-size: 10px; font-family: monospace; }
-    .log-head .status {
-      text-align: right; font-weight: 700;
-    }
+    .log-head .status { text-align: right; font-weight: 700; }
     .log-head .status.\32 00 { color: var(--accent); }
     .log-head .status.\33 00, .log-head .status.\33 01, .log-head .status.\33 02 { color: var(--warn); }
     .log-head .status.\34 00, .log-head .status.\34 04 { color: var(--warn); }
@@ -71,14 +64,8 @@
       overflow-x: auto; white-space: pre-wrap; word-break: break-all;
       max-height: 300px; overflow-y: auto; margin-bottom: 6px;
     }
-    .log-body .label {
-      font-size: 10px; color: var(--text-dim);
-      margin-bottom: 4px; font-weight: 600;
-    }
-    .log-body .meta-row {
-      display: flex; gap: 12px; font-size: 10px;
-      color: var(--text-dim); margin-bottom: 6px;
-    }
+    .log-body .label { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600; }
+    .log-body .meta-row { display: flex; gap: 12px; font-size: 10px; color: var(--text-dim); margin-bottom: 6px; }
     .empty { text-align: center; padding: 40px; color: var(--text-dim); }
   </style>
 </head>

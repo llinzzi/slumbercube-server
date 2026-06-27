@@ -4,29 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DJ Agent · 安睡小方电台</title>
+  <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/site-mobile.css">
   <style>
-    :root {
-      --bg: #0d0f14;
-      --surface: #15181f;
-      --surface2: #1c2029;
-      --border: #2a2f3a;
-      --text: #d4d8e0;
-      --text-dim: #6b7280;
-      --accent: #22c55e;
-      --accent-dim: #16a34a;
-      --warn: #f59e0b;
-      --err: #ef4444;
-      --info: #3b82f6;
-      --running: #22c55e;
-      --persona-mom: #ec4899;
-      --persona-dad: #3b82f6;
-      --persona-deer: #f59e0b;
-      --persona-grandpa: #8b5cf6;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* DJ 独有：state-badge / progress-bar / phase / persona-grid + card / action-row / history-item /
+       details.editor / toast / scene-table / kw-tags / sch-vol / col-label / label-preview */
+
     body {
-      background: var(--bg);
-      color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
       padding: 24px;
       line-height: 1.6;
@@ -34,25 +18,13 @@
       margin: 0 auto;
     }
     h1 { font-size: 22px; margin-bottom: 4px; font-weight: 600; }
-    .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-    .card h2 {
-      font-size: 14px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 16px;
-      font-weight: 600;
-    }
     .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .grow { flex: 1; }
+
+    /* DJ 页的 .card 改密一点（区别于 site.css 的紧凑 16px 默认） */
+    .card { padding: 20px; }
+    .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
 
     /* State badge */
     .state-badge {
@@ -65,7 +37,7 @@
       letter-spacing: 0.5px;
     }
     .state-idle { background: var(--surface2); color: var(--text-dim); }
-    .state-running { background: rgba(34,197,94,0.15); color: var(--running); }
+    .state-running { background: rgba(34,197,94,0.15); color: var(--running, var(--accent)); }
     .state-cancelling { background: rgba(245,158,11,0.15); color: var(--warn); }
     .state-done { background: rgba(59,130,246,0.15); color: var(--info); }
     .state-failed { background: rgba(239,68,68,0.15); color: var(--err); }
