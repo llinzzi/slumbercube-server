@@ -163,12 +163,14 @@ const DEFAULT_SETTINGS = {
     stationsDir: '/home/zulin/Music/网易云收藏',
   },
   alarm: {
-    // Wake-up alarm time the ESP32 displays / uses.
-    // 24-hour HH:MM, e.g. '07:50'. Empty string means disabled.
+    // Master switch. false = no alarm, ever.
+    enabled: true,
+    // 24-hour HH:MM, e.g. '07:50'. Ignored if enabled=false.
     time: '07:50',
-    // If true, the alarm still goes off on Sat/Sun. If false,
-    // the alarm is silenced on weekends.
-    weekend_enabled: false,
+    // Per-day weekend overrides. Only relevant if enabled=true.
+    // Workdays (Mon-Fri) always ring when enabled=true.
+    weekend_saturday: false,
+    weekend_sunday:   false,
   },
 };
 
@@ -1337,10 +1339,12 @@ app.get('/api/esp', async (req, res) => {
       weather: respWeather,
       alarm: (() => {
         const a = (loadSettings() || {}).alarm;
-        if (!a) return { time: '', weekend_enabled: false };
+        if (!a) return { enabled: false, time: '', weekend_saturday: false, weekend_sunday: false };
         return {
-          time: typeof a.time === 'string' ? a.time : '',
-          weekend_enabled: a.weekend_enabled === true,
+          enabled:          a.enabled !== false,
+          time:             typeof a.time === 'string' ? a.time : '',
+          weekend_saturday: a.weekend_saturday === true,
+          weekend_sunday:   a.weekend_sunday === true,
         };
       })(),    });
   }
@@ -1566,10 +1570,12 @@ app.get('/api/esp/:deviceId', async (req, res) => {
     weather: respWeather,
       alarm: (() => {
         const a = (loadSettings() || {}).alarm;
-        if (!a) return { time: '', weekend_enabled: false };
+        if (!a) return { enabled: false, time: '', weekend_saturday: false, weekend_sunday: false };
         return {
-          time: typeof a.time === 'string' ? a.time : '',
-          weekend_enabled: a.weekend_enabled === true,
+          enabled:          a.enabled !== false,
+          time:             typeof a.time === 'string' ? a.time : '',
+          weekend_saturday: a.weekend_saturday === true,
+          weekend_sunday:   a.weekend_sunday === true,
         };
       })(),  });
 });
@@ -1671,10 +1677,12 @@ app.get('/api/next', (req, res) => {
     weather: respWeather,
       alarm: (() => {
         const a = (loadSettings() || {}).alarm;
-        if (!a) return { time: '', weekend_enabled: false };
+        if (!a) return { enabled: false, time: '', weekend_saturday: false, weekend_sunday: false };
         return {
-          time: typeof a.time === 'string' ? a.time : '',
-          weekend_enabled: a.weekend_enabled === true,
+          enabled:          a.enabled !== false,
+          time:             typeof a.time === 'string' ? a.time : '',
+          weekend_saturday: a.weekend_saturday === true,
+          weekend_sunday:   a.weekend_sunday === true,
         };
       })(),    playlist: {
       total: pl.songs.length,
@@ -1944,8 +1952,10 @@ app.get('/api/settings', (req, res) => {
       stationsDir: s.library.stationsDir,
     },
     alarm: {
-      time: s.alarm.time,
-      weekend_enabled: s.alarm.weekend_enabled,
+      enabled:          s.alarm.enabled !== false,
+      time:             s.alarm.time,
+      weekend_saturday: s.alarm.weekend_saturday === true,
+      weekend_sunday:   s.alarm.weekend_sunday === true,
     },
   });
 });
@@ -1993,18 +2003,26 @@ app.post('/api/settings', express.json(), (req, res) => {
     }
   }
   if (body.alarm && typeof body.alarm === 'object') {
+    if (typeof body.alarm.enabled === 'boolean') {
+      next.alarm.enabled = body.alarm.enabled;
+    }
     if (typeof body.alarm.time === 'string') {
-      // Validate HH:MM (allow empty string to disable)
       const t = body.alarm.time.trim();
-      if (t === '') {
-        next.alarm.time = '';
-      } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
+      if (t === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
         next.alarm.time = t;
       }
-      // Otherwise ignore (invalid format, keep current value)
+      // invalid format → ignore
     }
+    if (typeof body.alarm.weekend_saturday === 'boolean') {
+      next.alarm.weekend_saturday = body.alarm.weekend_saturday;
+    }
+    if (typeof body.alarm.weekend_sunday === 'boolean') {
+      next.alarm.weekend_sunday = body.alarm.weekend_sunday;
+    }
+    // Backward-compat: if old `weekend_enabled` is sent, set both days.
     if (typeof body.alarm.weekend_enabled === 'boolean') {
-      next.alarm.weekend_enabled = body.alarm.weekend_enabled;
+      next.alarm.weekend_saturday = body.alarm.weekend_enabled;
+      next.alarm.weekend_sunday   = body.alarm.weekend_enabled;
     }
   }
   saveSettings(next);
@@ -2023,8 +2041,10 @@ app.post('/api/settings', express.json(), (req, res) => {
       },
       library: { stationsDir: next.library.stationsDir },
       alarm: {
-        time: next.alarm.time,
-        weekend_enabled: next.alarm.weekend_enabled,
+        enabled:          next.alarm.enabled !== false,
+        time:             next.alarm.time,
+        weekend_saturday: next.alarm.weekend_saturday === true,
+        weekend_sunday:   next.alarm.weekend_sunday === true,
       },
     },
   });

@@ -208,20 +208,33 @@
     <!-- ============== 闹钟 ============== -->
     <div class="card">
       <h2>⏰ 闹钟</h2>
-      <div class="meta">每天的起床闹铃时间。ESP32 端点 <code>/api/esp</code> 会带上这个字段。</div>
+      <div class="meta">每天的起床闹铃。ESP32 端点 <code>/api/esp</code> 会带上这个字段。</div>
+
+      <div class="field">
+        <label class="row">
+          <input type="checkbox" id="alarm-enabled" />
+          <span>开启闹铃（总开关）</span>
+        </label>
+        <div class="help">关闭后所有闹铃行为都不会触发。默认开启。</div>
+      </div>
 
       <div class="field">
         <label for="alarm-time">闹铃时间 (HH:MM)</label>
         <input class="input mono" id="alarm-time" type="time" />
-        <div class="help">24 小时制。留空 = 关闭闹铃。</div>
+        <div class="help">24 小时制。仅在「开启闹铃」勾选时生效。</div>
       </div>
 
       <div class="field">
+        <label>周末设置</label>
         <label class="row">
-          <input type="checkbox" id="alarm-weekend" />
-          <span>周末也响（周六、周日）</span>
+          <input type="checkbox" id="alarm-saturday" />
+          <span>周六也响</span>
         </label>
-        <div class="help">默认关闭 — 周末不响。</div>
+        <label class="row">
+          <input type="checkbox" id="alarm-sunday" />
+          <span>周日也响</span>
+        </label>
+        <div class="help">默认关闭 — 周末不响。周一至周五只要总开关打开就一定响。</div>
       </div>
 
       <div class="section-actions">
@@ -274,8 +287,11 @@
       // Library
       $('stations-dir').value = _settings.library.stationsDir;
       // Alarm
-      $('alarm-time').value = (_settings.alarm && _settings.alarm.time) || '';
-      $('alarm-weekend').checked = !!(_settings.alarm && _settings.alarm.weekend_enabled);
+      const a = _settings.alarm || {};
+      $('alarm-enabled').checked  = a.enabled !== false;
+      $('alarm-time').value       = a.time || '';
+      $('alarm-saturday').checked = a.weekend_saturday === true;
+      $('alarm-sunday').checked   = a.weekend_sunday === true;
     }
     function setKeyStatus(badgeId, k, inputId) {
       const b = $(badgeId);
@@ -359,15 +375,16 @@
 
     async function saveAlarm() {
       const t = $('alarm-time').value.trim();
-      // HTML <input type=time> returns 'HH:MM' (24h). Empty string when cleared.
       if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
         toast('时间格式错误，应为 HH:MM', true);
         return;
       }
       const body = {
         alarm: {
-          time: t,
-          weekend_enabled: $('alarm-weekend').checked,
+          enabled:          $('alarm-enabled').checked,
+          time:             t,
+          weekend_saturday: $('alarm-saturday').checked,
+          weekend_sunday:   $('alarm-sunday').checked,
         },
       };
       await doSave('alarm', body);
