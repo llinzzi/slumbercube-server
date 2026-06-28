@@ -162,6 +162,14 @@ const DEFAULT_SETTINGS = {
   library: {
     stationsDir: '/home/zulin/Music/网易云收藏',
   },
+  alarm: {
+    // Wake-up alarm time the ESP32 displays / uses.
+    // 24-hour HH:MM, e.g. '07:50'. Empty string means disabled.
+    time: '07:50',
+    // If true, the alarm still goes off on Sat/Sun. If false,
+    // the alarm is silenced on weekends.
+    weekend_enabled: false,
+  },
 };
 
 let _settings = null;
@@ -1327,7 +1335,14 @@ app.get('/api/esp', async (req, res) => {
       url,
       volume: currentVolume,
       weather: respWeather,
-    });
+      alarm: (() => {
+        const a = (loadSettings() || {}).alarm;
+        if (!a) return { time: '', weekend_enabled: false };
+        return {
+          time: typeof a.time === 'string' ? a.time : '',
+          weekend_enabled: a.weekend_enabled === true,
+        };
+      })(),    });
   }
 
   // ------------------------------------------------------------------
@@ -1549,7 +1564,14 @@ app.get('/api/esp/:deviceId', async (req, res) => {
     url,
     volume: currentVolume,
     weather: respWeather,
-  });
+      alarm: (() => {
+        const a = (loadSettings() || {}).alarm;
+        if (!a) return { time: '', weekend_enabled: false };
+        return {
+          time: typeof a.time === 'string' ? a.time : '',
+          weekend_enabled: a.weekend_enabled === true,
+        };
+      })(),  });
 });
 
 // ---------------------------------------------------------------
@@ -1647,7 +1669,14 @@ app.get('/api/next', (req, res) => {
     url,
     volume: currentVolume,
     weather: respWeather,
-    playlist: {
+      alarm: (() => {
+        const a = (loadSettings() || {}).alarm;
+        if (!a) return { time: '', weekend_enabled: false };
+        return {
+          time: typeof a.time === 'string' ? a.time : '',
+          weekend_enabled: a.weekend_enabled === true,
+        };
+      })(),    playlist: {
       total: pl.songs.length,
       current: _nextCursor,  // 1-indexed next position
       valid_until: pl.valid_until,
@@ -1914,6 +1943,10 @@ app.get('/api/settings', (req, res) => {
     library: {
       stationsDir: s.library.stationsDir,
     },
+    alarm: {
+      time: s.alarm.time,
+      weekend_enabled: s.alarm.weekend_enabled,
+    },
   });
 });
 
@@ -1959,6 +1992,21 @@ app.post('/api/settings', express.json(), (req, res) => {
       next.library.stationsDir = body.library.stationsDir;
     }
   }
+  if (body.alarm && typeof body.alarm === 'object') {
+    if (typeof body.alarm.time === 'string') {
+      // Validate HH:MM (allow empty string to disable)
+      const t = body.alarm.time.trim();
+      if (t === '') {
+        next.alarm.time = '';
+      } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
+        next.alarm.time = t;
+      }
+      // Otherwise ignore (invalid format, keep current value)
+    }
+    if (typeof body.alarm.weekend_enabled === 'boolean') {
+      next.alarm.weekend_enabled = body.alarm.weekend_enabled;
+    }
+  }
   saveSettings(next);
   // Return masked view (same shape as GET)
   res.json({
@@ -1974,6 +2022,10 @@ app.post('/api/settings', express.json(), (req, res) => {
         ttsVoiceId: next.minimax.ttsVoiceId,
       },
       library: { stationsDir: next.library.stationsDir },
+      alarm: {
+        time: next.alarm.time,
+        weekend_enabled: next.alarm.weekend_enabled,
+      },
     },
   });
 });

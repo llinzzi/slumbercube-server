@@ -205,6 +205,30 @@
       </div>
     </div>
 
+    <!-- ============== 闹钟 ============== -->
+    <div class="card">
+      <h2>⏰ 闹钟</h2>
+      <div class="meta">每天的起床闹铃时间。ESP32 端点 <code>/api/esp</code> 会带上这个字段。</div>
+
+      <div class="field">
+        <label for="alarm-time">闹铃时间 (HH:MM)</label>
+        <input class="input mono" id="alarm-time" type="time" />
+        <div class="help">24 小时制。留空 = 关闭闹铃。</div>
+      </div>
+
+      <div class="field">
+        <label class="row">
+          <input type="checkbox" id="alarm-weekend" />
+          <span>周末也响（周六、周日）</span>
+        </label>
+        <div class="help">默认关闭 — 周末不响。</div>
+      </div>
+
+      <div class="section-actions">
+        <button class="btn btn-primary" id="alarm-save">💾 保存</button>
+      </div>
+    </div>
+
     <div id="toast" class="toast"></div>
   </div>
 
@@ -249,6 +273,9 @@
       setKeyStatus('mmx-key-status', _settings.minimax.apiKey, 'mmx-key');
       // Library
       $('stations-dir').value = _settings.library.stationsDir;
+      // Alarm
+      $('alarm-time').value = (_settings.alarm && _settings.alarm.time) || '';
+      $('alarm-weekend').checked = !!(_settings.alarm && _settings.alarm.weekend_enabled);
     }
     function setKeyStatus(badgeId, k, inputId) {
       const b = $(badgeId);
@@ -328,6 +355,22 @@
       const d = $('stations-dir').value.trim();
       if (!d) { toast('路径不能为空', true); return; }
       await doSave('library', { library: { stationsDir: d } });
+    }
+
+    async function saveAlarm() {
+      const t = $('alarm-time').value.trim();
+      // HTML <input type=time> returns 'HH:MM' (24h). Empty string when cleared.
+      if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) {
+        toast('时间格式错误，应为 HH:MM', true);
+        return;
+      }
+      const body = {
+        alarm: {
+          time: t,
+          weekend_enabled: $('alarm-weekend').checked,
+        },
+      };
+      await doSave('alarm', body);
     }
 
     async function doSave(label, body) {
@@ -427,6 +470,7 @@
     $('weather-save').addEventListener('click', saveWeather);
     $('mmx-save').addEventListener('click', saveMmx);
     $('library-save').addEventListener('click', saveLibrary);
+    $('alarm-save').addEventListener('click', saveAlarm);
     $('weather-key-clear').addEventListener('click', () => {
       if (!confirm('清除和风天气 API Key？')) return;
       $('weather-key').value = '';
