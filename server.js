@@ -142,6 +142,8 @@ const SETTINGS_FILE = path.join(__dirname, 'config', 'settings.json');
 
 const DEFAULT_SETTINGS = {
   weather: {
+    // Sign up at https://dev.qweather.com/ for a free key. Empty string
+    // means fall through to config/settings.json (set in /settings UI).
     apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
     host:   'nn3aaqw4wr.re.qweatherapi.com',
   },

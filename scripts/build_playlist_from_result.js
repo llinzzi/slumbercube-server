@@ -40,6 +40,9 @@ const os = require('os');
 const SETTINGS_FILE = path.join(__dirname, '..', 'config', 'settings.json');
 const DEFAULT_SETTINGS = {
   weather: {
+    // Empty by default — resolved at request time from
+    // config/settings.json (configured via /settings UI) or the
+    // server's /api/weather endpoint.
     apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
     host:   'nn3aaqw4wr.re.qweatherapi.com',
   },
