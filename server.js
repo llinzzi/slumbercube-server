@@ -1288,17 +1288,20 @@ app.get('/api/esp', async (req, res) => {
     playedHistory.push(song.name);
     if (playedHistory.length > MAX_HISTORY) playedHistory.shift();
 
-    // Always return live weather, not the stale string from playlist generation
+    // Always return live weather, not the stale string from playlist
+    // generation. getWeather() handles the 1-min cache; if it's empty
+    // (e.g. server just restarted), force a fresh fetch.
     let w = await getWeather();
     if (!w) {
-      // Try one more time inline
       try {
-        const resp = await fetch(`https://${WEATHER_HOST}/v7/weather/now?location=${WEATHER_LOCATION}&key=${WEATHER_KEY}`);
-        const data = await resp.json();
-        if (data && data.now && data.now.temp) {
-          w = data;
+        w = await fetchWeatherData();
+        if (w) {
+          _weatherCache = w;
+          _weatherCacheTime = Date.now();
         }
-      } catch {}
+      } catch (e) {
+        console.log(`[api/esp] inline weather fetch failed: ${e.message.slice(0, 100)}`);
+      }
     }
     const respWeather = w ? {
       temp: w.now?.temp || w.temp || '--',
