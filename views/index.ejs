@@ -127,16 +127,6 @@
       font-weight: 600;
     }
 
-    .play-btn {
-      padding: 6px 16px;
-      border-radius: 6px;
-      background: var(--accent);
-      color: #000;
-      font-weight: 600;
-      text-decoration: none;
-      font-size: 12px;
-    }
-    .play-btn:hover { background: #16a34a; }
     .now-playing { font-size: 12px; color: var(--text-dim); flex:1; min-width: 0; }
     .now-playing .val { color: var(--text); font-weight: 500; }
 
@@ -208,7 +198,6 @@
     }
     .play-btn-sm:hover { background: var(--accent); color: #000; }
     .play-btn-sm.playing-now { background: var(--accent); color: #000; }
-    #audioPlayer { display: none; }
     .file-table .num { width: 32px; text-align: center; color: var(--text-dim); font-size: 11px; }
     .badge-next { font-size: 10px; background: var(--link); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
     .badge-now { font-size: 10px; background: var(--accent); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
@@ -299,7 +288,6 @@
 
 <!-- Player bar -->
 <div class="player-bar">
-  <a class="play-btn" id="playBtn" href="#" target="_blank">▶ 收听</a>
   <div class="now-playing"><span id="nowStation">🎧 安睡小方电台</span> · <span id="nowSong">—</span></div>
   <div class="vol">
     <span style="font-size:12px;color:var(--text-dim);">🔊</span>
@@ -317,10 +305,7 @@
   <span>📋 <span id="listTitle">全部曲目</span></span>
   <span style="display:flex;gap:6px;align-items:center;">
     <span id="libraryCount" style="font-size:11px;color:var(--text-dim);"></span>
-    <select id="deviceSelect" class="device-select" onchange="onDeviceChange(this)">
-      <option value="">📡 设备</option>
-    </select>
-    <span id="deviceResetBtn" onclick="resetDevice()" style="font-size:13px;cursor:pointer;display:none;" title="重置到第一首">↺</span>
+    <span id="deviceList" style="font-size:11px;color:var(--text-dim);"></span>
   </span>
 </div>
 <table class="file-table">
@@ -330,9 +315,6 @@
 
 <div class="footer"><span id="lastInfo">—</span></div>
 <div class="server-clock" id="serverClock">🕐 加载中...</div>
-
-<!-- Hidden audio player for in-page preview -->
-<audio id="audioPlayer" controls preload="none"></audio>
 
 </div>
 
@@ -354,16 +336,16 @@ function renderSource(src, deviceData) {
   const listTitle = document.getElementById('listTitle');
   const libraryCount = document.getElementById('libraryCount');
   const fileBody = document.getElementById('fileBody');
-  const playBtn = document.getElementById('playBtn');
-  const audioPlayer = document.getElementById('audioPlayer');
 
-  // Get selected device cursor
-  const sel = document.getElementById('deviceSelect');
-  const selectedDeviceId = sel ? sel.value : '';
-  const deviceSong = (deviceData && selectedDeviceId)
-    ? deviceData.devices.find(d => d.id === selectedDeviceId)
-    : null;
-  const deviceCursor = deviceSong ? (deviceSong.cursor - 1) : -1;
+  // Build device map: songIndex → active devices
+  const deviceMap = {};
+  if (deviceData && deviceData.devices) {
+    deviceData.devices.forEach(dev => {
+      const idx = dev.cursor || 0;
+      if (!deviceMap[idx]) deviceMap[idx] = [];
+      deviceMap[idx].push(dev);
+    });
+  }
 
   if (src.mode === 'playlist' && src.playlist) {
     // ----- Playlist mode — card layout -----
@@ -372,7 +354,6 @@ function renderSource(src, deviceData) {
     const curSong = p.songs[p.current_index] || p.songs[0];
     nowStation.textContent = '🎧 安睡小方电台';
     nowSong.textContent = curSong ? curSong.name : '—';
-    if (curSong && curSong.stitched_url) playBtn.href = curSong.stitched_url;
     listTitle.textContent = '🎧 AI 推荐播放列表';
     if (libraryCount) libraryCount.textContent = `${p.current_index + 1}/${p.total}`;
 
@@ -391,13 +372,15 @@ function renderSource(src, deviceData) {
       cardList.style.display = 'block';
       cardList.innerHTML = p.songs.map((song, i) => {
         const isPlaying = i === p.current_index;
-        const isDeviceSong = i === deviceCursor && selectedDeviceId;
+        const devicesHere = deviceMap[i] || [];
         let cls = '';
         if (isPlaying) cls += ' playing';
-        if (isDeviceSong) cls += ' device-active';
-        const onClick = selectedDeviceId ? `seekDevice('${selectedDeviceId}', ${i})` : '';
+        if (devicesHere.length > 0) cls += ' device-active';
+        const deviceBadges = devicesHere.map(d =>
+          `<span class="badge-device" title="上次心跳 ${d.last_seen ? new Date(d.last_seen).toLocaleTimeString('zh-CN', {hour12: false}) : '?'}">📡 ${d.id}</span>`
+        ).join('');
         return `
-          <div class="playlist-card${cls}"${onClick ? ` onclick="${onClick}" style="cursor:pointer;"` : ''}>
+          <div class="playlist-card${cls}">
             <div class="card-num">${String(i + 1).padStart(2, '0')}</div>
             <div class="card-body">
               <div class="card-song">${song.name}</div>
@@ -405,7 +388,7 @@ function renderSource(src, deviceData) {
             </div>
             <div class="card-meta">
               ${isPlaying ? '<span class="badge-now">▶ 播放中</span>' : ''}
-              ${isDeviceSong ? '<span class="badge-device">📡 播放中</span>' : ''}
+              ${deviceBadges}
             </div>
           </div>
         `;
@@ -443,50 +426,26 @@ loadDevices();
 setInterval(load, 5000);
 setInterval(loadDevices, 10000);
 
+let lastDeviceData = null;
+
 async function loadDevices() {
   try {
     const r = await fetch('/api/devices');
-    const d = await r.json();
-    const sel = document.getElementById('deviceSelect');
-    const currentVal = sel.value;
-    sel.innerHTML = '<option value="">📡 设备</option>';
-    if (d.devices.length === 0) {
-      sel.innerHTML += '<option disabled>暂无设备</option>';
-    } else {
-      d.devices.forEach(dev => {
-        const active = dev.active ? '🟢' : '⚪';
-        const label = `${active} ${dev.id} · 第${dev.cursor}/${d.playlist_songs}首`;
-        sel.innerHTML += `<option value="${dev.id}">${label}</option>`;
-      });
+    lastDeviceData = await r.json();
+    // Update device list indicator in header
+    const el = document.getElementById('deviceList');
+    if (el && lastDeviceData.devices) {
+      const active = lastDeviceData.devices.filter(d => d.active);
+      if (active.length > 0) {
+        el.textContent = active.map(d => `📡 ${d.id}`).join(' ');
+      } else if (lastDeviceData.devices.length > 0) {
+        el.textContent = `📡 ${lastDeviceData.devices.length} 台离线`;
+      } else {
+        el.textContent = '';
+      }
     }
-    if (currentVal) sel.value = currentVal;
+    load();  // Re-render with device data
   } catch (e) {}
-}
-
-function onDeviceChange(sel) {
-  const resetBtn = document.getElementById('deviceResetBtn');
-  if (resetBtn) resetBtn.style.display = sel.value ? 'inline' : 'none';
-  if (!sel.value) return;
-  load();  // Re-render to highlight device song
-  loadDevices();
-}
-
-async function seekDevice(deviceId, position) {
-  try {
-    await fetch(`/api/devices/${encodeURIComponent(deviceId)}/seek`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ position }),
-    });
-    load();
-    loadDevices();
-  } catch(e) {}
-}
-
-async function resetDevice() {
-  const sel = document.getElementById('deviceSelect');
-  if (!sel || !sel.value) return;
-  await seekDevice(sel.value, 0);
 }
 
 // Weather
@@ -581,42 +540,6 @@ async function syncClock() {
 }
 syncClock();
 
-// Play track preview — respects TTS toggle (播报中)
-const audioEl = document.getElementById('audioPlayer');
-let currentPlayBtn = null;
-
-async function playTrack(name, btn) {
-  // Stop current
-  audioEl.pause();
-  audioEl.currentTime = 0;
-  if (currentPlayBtn && currentPlayBtn !== btn) {
-    currentPlayBtn.classList.remove('playing-now');
-    currentPlayBtn.textContent = '▶';
-  }
-
-  // Toggle pause if same song
-  if (currentPlayBtn === btn && audioEl.dataset.song === name) {
-    currentPlayBtn.classList.remove('playing-now');
-    currentPlayBtn.textContent = '▶';
-    currentPlayBtn = null;
-    return;
-  }
-
-  btn.classList.add('playing-now');
-  btn.textContent = '⏹';
-  currentPlayBtn = btn;
-
-  const url = '/audio/local/track/' + encodeURIComponent(name);
-  audioEl.src = url;
-  audioEl.dataset.song = name;
-  audioEl.play().catch(() => {});
-
-  audioEl.onended = () => {
-    btn.classList.remove('playing-now');
-    btn.textContent = '▶';
-    currentPlayBtn = null;
-  };
-}
 </script>
 </body>
 </html>

@@ -1587,7 +1587,7 @@ app.get('/api/devices', (req, res) => {
   const pl = loadCurrentPlaylist();
   const devices = [];
   for (const [deviceId, dc] of _deviceCursors) {
-    const songIdx = Math.max(0, (dc.cursor || 1) - 1);
+    const songIdx = dc.cursor || 0;
     const currentSong = (pl && pl.songs && pl.songs[songIdx]) ? pl.songs[songIdx].name : '—';
     devices.push({
       id: deviceId,
