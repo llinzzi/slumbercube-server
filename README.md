@@ -66,7 +66,7 @@ graph TB
     BR[Browser<br/>/dj /library /temps /log /settings]
   end
 
-  ESP -->|GET /api/esp/:id?t=X&h=Y| S
+  ESP -->|"GET /api/esp/:id"| S
   BR -->|HTTP| S
 ```
 
@@ -200,50 +200,117 @@ Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用�
 
 ## API 一览
 
-### 播放器 / ESP32
+### 页面路由
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/esp/:deviceId` | 拉下一首歌 + 实时天气；`?t=X&h=Y` 顺带传温湿度 |
-| `GET` | `/api/time` | 服务器时间 |
-| `GET` | `/api/weather` | 实时天气（走 1 min 缓存） |
-| `GET` | `/api/volume` / `POST /api/volume` | 当前音量 (1-100) |
+| `GET` | `/` | 首页 |
+| `GET` | `/library` | 曲库页面 |
+| `GET` | `/dj` | DJ Agent 控制台 |
+| `GET` | `/temps` | 温湿度图表页 |
+| `GET` | `/log` | API 请求日志页 |
+| `GET` | `/settings` | 设置页（天气/API key/曲库） |
+| `GET` | `/history` | → 301 `/library` |
+| `GET` | `/admin`, `/admin/dj` | → 301 `/dj` |
+
+### ESP32 播放
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/esp` | 无设备 ID 的兜底播放 |
+| `GET` | `/api/esp/:deviceId` | 拉下一首歌 + 天气；`?t=X&h=Y` 顺带传温湿度 |
+| `GET` | `/api/next` | 手动切下一首 |
+| `POST` | `/api/select-next` | 设置下一首曲目 |
+| `POST` | `/api/reshuffle` | 重新打乱播放列表 |
+| `GET` | `/api/playlist` | 当前播放列表顺序 |
+| `GET` | `/api/source` | 播放源信息 |
+
+### 设备管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/devices` | 所有在线设备（含播放进度） |
+| `GET` | `/api/devices/list` | 所有已知设备名 |
+| `POST` | `/api/devices/:deviceId/seek` | 设备跳转到指定曲目 |
+
+### 音量 / 时间
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` / `POST` | `/api/volume` | 当前音量 (1-100) |
+| `GET` | `/api/time` | 服务器当前时间 |
+
+### 天气
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/weather` | 实时天气（1 min 缓存） |
+| `GET` / `POST` | `/api/weather/location` | 城市设置 |
+| `GET` | `/api/weather/lookup?q=` | 城市搜索（QWeather 地理编码） |
+
+### 设置
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` / `POST` | `/api/settings` | 读写运行时配置（apiKey mask 返回） |
+
+### TTS 播报
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/tts-intro` | 查看 TTS intro 缓存状态 |
+| `POST` | `/api/tts-intro` | 触发 TTS intro 测试生成 |
 
 ### DJ Agent
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| `GET` | `/api/dj/status` | Worker 运行状态 |
 | `POST` | `/api/dj/trigger` | 触发场景任务 `{batch, scene, volume?}` |
 | `POST` | `/api/dj/cancel` | 取消运行中任务 |
-| `GET` | `/api/dj/status` | 当前 worker 任务状态 |
-| `GET` / `POST` | `/api/dj/intro-prompts` | 编辑 LLM prompt 模板 |
-| `GET` / `POST` | `/api/schedule` | 定时任务列表 |
+| `GET` | `/api/dj/llm-history` | LLM 调用历史 |
+| `GET` / `POST` | `/api/dj/vibes` | DJ Vibe 配置 |
+| `GET` / `POST` | `/api/dj/intro-prompts` | 播报词 Prompt 配置 |
+| `GET` | `/api/dj/personas` | DJ 角色信息 |
 
-### 曲库 / 设置
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/library` | 所有歌单概览（按 playlist 分组） |
-| `GET` | `/api/library/:id` | 单歌单歌曲列表 |
-| `GET` | `/api/netease/search?q=` | 搜网易云 |
-| `GET` / `POST` | `/api/settings` | 读写运行时配置（apiKey masked） |
-| `GET` / `POST` | `/api/weather/location` | 城市切换 |
-| `GET` | `/api/weather/lookup?q=` | 城市搜索（QWeather 地理编码） |
-
-### 温湿度 / 日志
+### 定时任务
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/devices/list` | 设备列表（按 IP 区分） |
-| `GET` | `/api/readings` | 温湿度历史 |
-| `GET` / `POST` | `/api/log` | API 日志 |
+| `GET` / `POST` | `/api/schedule` | 定时任务配置 |
+| `POST` | `/api/schedule/install` | 从配置重新安装 crontab |
 
-### 音频
+### 曲库
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/library` | 所有歌曲（含搜索/排序/分页） |
+| `GET` | `/api/library/:id` | 单首歌曲详情 |
+
+### 网易云代理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/netease/search?q=` | 搜索歌曲 |
+| `GET` | `/api/netease/song/:id` | 单曲信息 |
+| `GET` | `/api/netease/play/:id` | 获取可播放 URL |
+| `GET` | `/api/netease/playlist/:id` | 歌单曲目列表 |
+| `GET` | `/api/netease/album/:id` | 专辑封面/元数据 |
+
+### 传感器 / 日志
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` / `POST` | `/api/readings` | 温湿度历史查询/上报 |
+| `GET` | `/api/log` | 请求日志 |
+| `POST` | `/api/log/clear` | 清空请求日志 |
+
+### 音频文件
 
 | 路径 | 说明 |
 |------|------|
 | `/audio/local/track/<name>` | 本地 mp3（带 Range） |
-| `/audio/playlist-stitched/<stamp>/<n>.mp3` | intro+歌 拼接好的 mp3 |
+| `/audio/playlist-stitched/<stamp>/<n>.mp3` | intro + 歌 拼接好的 mp3 |
 | `/audio/playlist-intro/<stamp>/<n>.mp3` | 单首 TTS intro |
 
 ## Web UI
