@@ -158,40 +158,6 @@ DJ Agent 的核心是 `config/intro_prompts.json` 里的几组 prompt（全部�
 | `playlist_selector` | NCM 返回候选后 | 让 LLM 从候选里选 1 个歌单 |
 | `scene_hints` | 每次触发 | 场景的搜索关键词 + LLM 标签 + 定时 + 音量 |
 
-完整的 12 步管线：
-
-```mermaid
-sequenceDiagram
-  participant C as "crontab / trigger"
-  participant S as "server.js"
-  participant W as "dj_worker"
-  participant SF as "scene_fetch"
-  participant BP as "build_playlist"
-  participant NCM as "NCM :3001"
-  participant LLM as "MiniMax-M3"
-  participant TTS as "MiniMax TTS"
-  participant LAME as "lame"
-  participant F as ".radio_playlist"
-
-  C->>S: "POST /api/dj/trigger (scene, volume)"
-  S->>S: "set volume; save state"
-  S->>F: "write trigger"
-  W->>F: "poll, detect trigger"
-  W->>SF: "spawn scene_fetch.js"
-  SF->>S: "GET /api/weather (cached, 1 min TTL)"
-  SF->>LLM: "1) keywords from scene + history"
-  SF->>NCM: "searchPlaylists(kw, 10)"
-  SF->>LLM: "2) pick best playlist"
-  SF->>NCM: "playlist detail, download url x20"
-  SF->>F: "write playlist.json"
-  W->>BP: "spawn build_playlist_from_result.js"
-  BP->>LLM: "3) 20 songs + weather → 20 intros"
-  BP->>TTS: "4) intros x20 → mp3"
-  BP->>LAME: "5) decode, mono2stereo, re-encode 44.1kHz"
-  BP->>F: "6) stitch: intro + mp3"
-  BP->>F: "atomically swap current.json"
-```
-
 Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用三段策略自动解析：
 1. **JSON array**: `[{"name":"...", "intro":"..."}, ...]`
 2. **Strategy 2**: 按 `《歌名》` 归 paragraph
