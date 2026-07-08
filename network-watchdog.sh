@@ -9,11 +9,11 @@
 #   1. 主方案 — 走 netplan 静态 IP（00-static-ens1.yaml），从根上不再依赖 DHCP
 #   2. 兜底 — 这个脚本 开机后跑一次，每 10 秒检查：
 #        - ens1 状态是不是 UP
-#        - 有没有 192.168.8.192/24 这个 IP
-#        - 能不能 ping 通网关 192.168.8.1
+#        - 有没有 YOUR_SERVER_IP/24 这个 IP
+#        - 能不能 ping 通网关 YOUR_GATEWAY_IP
 #      任意一项失败就重置 ens1（先 down 再 up），最多重试 5 次。
 #
-# 跑法：crontab @reboot /home/zulin/slumbercube-server/network-watchdog.sh
+# 跑法：crontab @reboot /path/to/slumbercube-server/network-watchdog.sh
 #
 # 日志：/tmp/network_watchdog.log
 ###############################################################################
@@ -21,8 +21,8 @@
 set -u
 
 IFACE=ens1
-EXPECTED_IP="192.168.8.192/24"
-GATEWAY="192.168.8.1"
+EXPECTED_IP="YOUR_SERVER_IP/24"
+GATEWAY="YOUR_GATEWAY_IP"
 LOG=/tmp/network_watchdog.log
 MAX_RETRIES=5
 SLEEP_LOOP=10

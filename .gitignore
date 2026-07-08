@@ -19,3 +19,6 @@ config/weather.json
 # Central runtime settings — contains API keys, per-host
 config/settings.json
 .radio_state.json
+
+# Claude Code project config (may contain host-specific paths)
+.claude/

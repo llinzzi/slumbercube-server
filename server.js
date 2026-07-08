@@ -145,7 +145,7 @@ const DEFAULT_SETTINGS = {
     // Sign up at https://dev.qweather.com/ for a free key. Empty string
     // means fall through to config/settings.json (set in /settings UI).
     apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
-    host:   'nn3aaqw4wr.re.qweatherapi.com',
+    host:   '',  // Your QWeather API host (sign up at https://dev.qweather.com/)
   },
   minimax: {
     // apiKey is intentionally empty by default — it's resolved at request
@@ -160,7 +160,7 @@ const DEFAULT_SETTINGS = {
     ttsVoiceId:     'male-qn-qingse',
   },
   library: {
-    stationsDir: '/home/zulin/Music/网易云收藏',
+    stationsDir: process.env.STATIONS_DIR || path.join(os.homedir(), 'Music', '网易云收藏'),
   },
   alarm: {
     // Master switch. false = no alarm, ever.
@@ -215,7 +215,7 @@ function loadWeatherConfig() {
       if (d.locationId && /^[0-9]{9,12}$/.test(d.locationId)) return d;
     }
   } catch (e) { console.error('loadWeatherConfig:', e.message); }
-  return { locationId: '101210106', locationName: '余杭', adm1: '浙江', adm2: '杭州' };
+  return { locationId: '101010100', locationName: '北京', adm1: '北京', adm2: '北京' };
 }
 
 function saveWeatherConfig(cfg) {
@@ -463,7 +463,7 @@ function getMinimaxApiKey() {
 
 // Fallback const for startup-time resolution. Settings changes at runtime
 // won't affect this const — but getStationsDir() reads live value.
-const STATIONS_DIR = process.env.STATIONS_DIR || '/home/zulin/Music/网易云收藏';
+const STATIONS_DIR = process.env.STATIONS_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 
 
 // Recursively walk a directory, returning absolute paths of all .mp3 files.
@@ -954,6 +954,18 @@ let _lastBgGenAttempt = 0;      // 节流：每 5 分钟最多后台触发一次
 // Map<deviceId, {cursor, playlistStamp}>
 const _deviceCursors = new Map();
 
+// Active MP3 stream progress — filePath → { bytesWritten, totalBytes, startTime }
+// Written from servePlaylistFile (data events), read from /api/devices.
+const _activeStreams = new Map();
+
+// Clean up stale stream entries every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000; // 10 min TTL
+  for (const [fp, entry] of _activeStreams) {
+    if (entry.startTime < cutoff) _activeStreams.delete(fp);
+  }
+}, 5 * 60 * 1000);
+
 function loadCurrentPlaylist() {
   // Re-read .radio_playlist/current.json on every call. Cheap (~few KB).
   // If the stamp changed (new playlist generated), reset the cursor.
@@ -1192,9 +1204,9 @@ app.get('/api/source', (req, res) => {
   // Library mode — fallback when no playlist is ready. Under
   // feat/netease-only the "library" is just the netease-downloaded
   // songs, with no exclusion list (toggle endpoints were removed). We
-  // flatten everything in /home/zulin/Music/网易云收藏/ as a fallback song pool.
+  // flatten everything in STATIONS_DIR as a fallback song pool.
   function getAllActiveSongs() {
-    const NETEASE_DIR = '/home/zulin/Music/网易云收藏';
+    const NETEASE_DIR = STATIONS_DIR;
     const songs = [];
     if (!fs.existsSync(NETEASE_DIR)) return songs;
     for (const f of fs.readdirSync(NETEASE_DIR)) {
@@ -1526,6 +1538,22 @@ app.get('/api/esp/:deviceId', async (req, res) => {
   const url = `${base}${song.stitched_url}`;
   console.log(`[esp/${deviceId}] ${song.name} (${dc.cursor}/${pl.songs.length})`);
 
+  // Store playback start time + estimated duration for progress tracking.
+  // Resolve the file path to get actual file size for a realistic estimate.
+  dc._songStartedAt = Date.now();
+  dc._songDurationEst = 180; // fallback: 3 minutes
+  if (song.stitched_url) {
+    const sm = song.stitched_url.match(/\/audio\/playlist-stitched\/(\d{12,14})\/(.+)\.mp3$/);
+    if (sm) {
+      const fp = path.join(PLAYLIST_ROOT, sm[1], INTRO_REL_DIR, sm[2] + '.stitched.mp3');
+      try {
+        const st = fs.statSync(fp);
+        // Typical MP3: ~128 kbps → 16 KB/s → duration = size / 16
+        dc._songDurationEst = Math.max(30, Math.round(st.size / 1024 / 16));
+      } catch (_) {}
+    }
+  }
+
   // Record to history
   playedHistory.push(song.name);
   if (playedHistory.length > MAX_HISTORY) playedHistory.shift();
@@ -1588,11 +1616,31 @@ app.get('/api/devices', (req, res) => {
   const devices = [];
   for (const [deviceId, dc] of _deviceCursors) {
     const songIdx = dc.cursor || 0;
-    const currentSong = (pl && pl.songs && pl.songs[songIdx]) ? pl.songs[songIdx].name : '—';
+    const song = (pl && pl.songs && pl.songs[songIdx]) ? pl.songs[songIdx] : null;
+    const currentSong = song ? song.name : '—';
+    // Progress: prefer live HTTP stream bytes, fall back to elapsed-time estimate
+    let progress = null;
+    if (song && song.stitched_url) {
+      const m = song.stitched_url.match(/\/audio\/playlist-stitched\/(\d{12,14})\/(.+)\.mp3$/);
+      if (m) {
+        const fp = path.join(PLAYLIST_ROOT, m[1], INTRO_REL_DIR, m[2] + '.stitched.mp3');
+        const stream = _activeStreams.get(fp);
+        if (stream && stream.totalBytes > 0 && stream.bytesWritten > 0) {
+          progress = Math.min(1, Math.max(0, stream.bytesWritten / stream.totalBytes));
+        }
+      }
+    }
+    // Fallback: estimate from elapsed time since song was served
+    if (progress === null && dc._songStartedAt) {
+      const elapsed = (Date.now() - dc._songStartedAt) / 1000;
+      const dur = dc._songDurationEst || 180;
+      progress = Math.min(1, Math.max(0, elapsed / dur));
+    }
     devices.push({
       id: deviceId,
       cursor: dc.cursor || 0,
       current_song: currentSong,
+      progress: progress,
       last_seen: dc.lastSeen ? new Date(dc.lastSeen).toISOString() : null,
       active: dc.lastSeen ? (Date.now() - dc.lastSeen < 300000) : false,
     });
@@ -1719,7 +1767,27 @@ function servePlaylistFile(req, res, type) {
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'public, max-age=7200',  // 2h, matches playlist TTL
   });
-  fs.createReadStream(filePath).pipe(res);
+  const readStream = fs.createReadStream(filePath);
+  let streamEntry = _activeStreams.get(filePath);
+  if (!streamEntry) {
+    streamEntry = { bytesWritten: 0, totalBytes: stat.size, startTime: Date.now() };
+    _activeStreams.set(filePath, streamEntry);
+  } else {
+    // Re-started stream for same file (e.g., reconnect)
+    streamEntry.bytesWritten = 0;
+    streamEntry.startTime = Date.now();
+    streamEntry.totalBytes = stat.size;
+  }
+  readStream.on('data', chunk => {
+    streamEntry.bytesWritten += chunk.length;
+  });
+  readStream.on('end', () => {
+    streamEntry.bytesWritten = streamEntry.totalBytes || stat.size;
+  });
+  readStream.on('error', () => {
+    _activeStreams.delete(filePath);
+  });
+  readStream.pipe(res);
   return true;
 }
 
@@ -1750,38 +1818,6 @@ app.post('/api/volume', express.json(), (req, res) => {
 // Union of all text strings across local MP3 titles — used to build a compact
 // embedded font that only needs to render the glyphs we actually use.
 // Result is deterministic: only STATIC data (file names + ID3 titles), no live state.
-app.get('/api/fonts', (req, res) => {
-  const fields = new Set();
-  const collect = (s) => s && typeof s === 'string' && s.split('').forEach(c => fields.add(c));
-
-  // Single-library mode — iterate the one station
-  const st = currentLocalStation;
-  if (st) {
-    collect(st.id);
-    collect(st.name);
-    for (const fi of st.fileInfos || []) {
-      collect(fi.title);
-      collect(fi.name);
-    }
-  }
-
-  // Keep printable BMP characters only. Drop controls, surrogates (emoji flags etc),
-  // and any non-BMP codepoints since LVGL font tooling typically only handles BMP.
-  const printable = [...fields].filter(c => {
-    const cp = c.codePointAt(0);
-    if (cp < 0x20) return false;       // control
-    if (cp === 0x7f) return false;     // DEL
-    if (cp >= 0xD800 && cp <= 0xDFFF) return false;  // UTF-16 surrogate halves (emoji etc.)
-    if (cp > 0xFFFF) return false;     // non-BMP
-    return true;
-  });
-
-  res.json({
-    count: printable.length,
-    text: printable.join('')
-  });
-});
-
 // ---------------------------------------------------------------
 // Weather — 和风天气, 余杭
 // ---------------------------------------------------------------
@@ -2669,7 +2705,7 @@ app.post('/api/dj/vibes', express.json(), (req, res) => {
 // ---------------------------------------------------------------
 // /api/library — 网易云收藏 (the only thing shown on /library now).
 //
-// Returns every downloaded song in /home/zulin/Music/网易云收藏 with the NCM
+// Returns every downloaded song in STATIONS_DIR with the NCM
 // playlist it was sourced from (so the UI can group by playlist_name
 // and show "this song came from 听了心情会好的歌" etc).
 //
@@ -2691,7 +2727,7 @@ app.post('/api/dj/vibes', express.json(), (req, res) => {
 // apply here: 网易云收藏 holds 993 files (not 19k) and stat is fast.
 // ---------------------------------------------------------------
 const LIBRARY_INDEX_FILE = path.join(__dirname, '.radio_playlist', 'library_index.json');
-const NETEASE_DIR = '/home/zulin/Music/网易云收藏';
+const NETEASE_DIR = STATIONS_DIR;
 
 function _readIndexSync() {
   try {

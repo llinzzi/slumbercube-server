@@ -84,7 +84,6 @@ function detectMmxBin() {
   if (process.env.MMX_BIN && fs.existsSync(process.env.MMX_BIN)) return process.env.MMX_BIN;
   const candidates = [
     '/opt/homebrew/bin/mmx',
-    '/home/zulin/.nvm/versions/node/v20.20.2/bin/mmx',
     '/usr/local/bin/mmx',
   ];
   for (const p of candidates) {

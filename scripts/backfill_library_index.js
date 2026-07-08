@@ -22,12 +22,13 @@
  * automatically through netease_dl.js's appendLibraryIndex().
  */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const PROJECT = (process.env.HOME || '/root') + '/slumbercube-server';
+const PROJECT = process.env.HOME ? path.join(process.env.HOME, 'slumbercube-server') : path.join(__dirname, '..');
 const QUEUE_STATE = path.join(PROJECT, '.radio_playlist', 'queue_state.json');
 const LIBRARY_INDEX = path.join(PROJECT, '.radio_playlist', 'library_index.json');
-const NETEASE_DIR = process.env.NETEASE_DOWNLOAD_DIR || '/home/zulin/Music/网易云收藏';
+const NETEASE_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 
 function readJSON(p, fallback) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); }

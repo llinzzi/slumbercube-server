@@ -9,7 +9,7 @@
 # 解法：每 10s 检查 worker.log 是否在 60s 内有更新；queue_state.json 的
 #       state 是否=running；pgrep 是否还能找到 worker 进程。三者不一致就拉起。
 #
-# 配合 crontab @reboot /home/zulin/slumbercube-server/dj-worker-watchdog.sh
+# 配合 crontab @reboot /path/to/slumbercube-server/dj-worker-watchdog.sh
 #
 # 日志：/tmp/dj_worker_watchdog.log
 ###############################################################################
@@ -18,7 +18,7 @@ set -u
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-APP_DIR=/home/zulin/slumbercube-server
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKER=$APP_DIR/scripts/dj_worker.js
 WORKER_LOG=$APP_DIR/.radio_playlist/worker.log
 STATE=$APP_DIR/.radio_playlist/queue_state.json

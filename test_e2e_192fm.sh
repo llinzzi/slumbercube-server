@@ -11,7 +11,7 @@
 #   L5  Background pipeline (curl — scene trigger → queue → worker → songs)
 #
 # Run:   bash test_e2e_192fm.sh                    # default host http://127.0.0.1:3000
-#        bash test_e2e_192fm.sh http://192.168.8.192:3000
+#        bash test_e2e_192fm.sh http://YOUR_SERVER:3000
 #        bash test_e2e_192fm.sh --keep-going        # don't exit on first fail
 #        bash test_e2e_192fm.sh --skip-ui           # skip browser tests (no Hermes tools)
 #

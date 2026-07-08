@@ -7,7 +7,11 @@ const https = require('https');
 
 function fetchWeather7d() {
   return new Promise((resolve) => {
-    const url = 'https://nn3aaqw4wr.re.qweatherapi.com/v7/weather/7d?location=101210106&key=YOUR_QWEATHER_API_KEY_HERE';
+    // Replace with your own QWeather host and key (sign up at https://dev.qweather.com/)
+    const host = 'YOUR_QWEATHER_HOST';  // e.g. 'api.qweather.com'
+    const key = 'YOUR_QWEATHER_API_KEY_HERE';
+    const location = '101010100';       // QWeather location ID
+    const url = `https://${host}/v7/weather/7d?location=${location}&key=${key}`;
     const req = https.get(url, (res) => {
       let data = '';
       res.on('data', c => data += c);

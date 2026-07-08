@@ -6,16 +6,17 @@
  * module so the search→url→download flow is in one place.
  *
  * The sidecar process must be running on NETEASE_API (see README — started
- * via /home/zulin/ncm-api/start.sh). All requests are anonymous — no
+ * via the local NCM API service.
  * login cookie, no VIP. Anonymous requests can still resolve search,
  * playlist detail, and 320kbps song URLs for free content.
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const NETEASE_API = process.env.NETEASE_API || 'http://127.0.0.1:3001';
-const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || '/home/zulin/Music/网易云收藏';
+const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 const NETEASE_REQUEST_TIMEOUT = 8000;  // ms — search + song/url each have budget
 
 // Sanitize a song name for use as a filename. Chinese chars are kept;

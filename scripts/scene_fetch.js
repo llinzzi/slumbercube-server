@@ -361,7 +361,7 @@ async function main() {
       // Persist the actual downloaded song list so the post-fetch
       // playlist builder (scripts/build_playlist_from_result.js) can
       // turn these into a stitched, intro-narrated playlist without
-      // having to re-walk /home/zulin/Music/网易云收藏. Each entry mirrors
+      // having to re-walk the download directory. Each entry mirrors
       // what generate_playlist.js expects: name + filePath.
       songs: downloaded.map(s => ({
         name: s.name,

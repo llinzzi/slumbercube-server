@@ -3,17 +3,18 @@
  * test_netease_only.js — 端到端测试 netease-only 流程
  *
  * 不走 AI，直接喂 6 个真实歌名 + 歌手，看能不能跑通
- *   search → 拿 URL → 下载到 /home/zulin/Music/网易云收藏/
+ *   search → 拿 URL → 下载到 NETEASE_DOWNLOAD_DIR 目录
  *
  * 用法:  node scripts/test_netease_only.js
  *      或 DJ_NAMES="歌1|歌手1|歌2|歌手2" node scripts/test_netease_only.js
  */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 // 直接 inline 复制 neteaseSearchAndDownload 函数（避免 require 时触发 main()）
 const NETEASE_API = process.env.NETEASE_API || 'http://127.0.0.1:3001';
-const NETEASE_DOWNLOAD_DIR = '/home/zulin/Music/网易云收藏';
+const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 
 function sanitizeFilename(s) {
   return s.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120);

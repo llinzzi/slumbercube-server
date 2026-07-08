@@ -68,10 +68,6 @@
       border-radius: 8px;
       transition: all 0.2s;
     }
-    .playlist-card.playing {
-      border-color: var(--accent);
-      background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(59,130,246,0.06));
-    }
     .playlist-card .card-num {
       font-family: 'SF Mono', monospace;
       font-size: 14px;
@@ -79,7 +75,6 @@
       min-width: 28px;
       text-align: center;
     }
-    .playlist-card.playing .card-num { color: var(--accent); font-weight: 600; }
 
     /* 开场白卡片 */
     .preamble-card {
@@ -104,16 +99,7 @@
       font-style: italic;
       margin-top: 3px;
     }
-    .playlist-card.playing .card-song { color: var(--accent); }
     .playlist-card .card-meta { min-width: 80px; text-align: right; }
-    .playlist-card .badge-now {
-      font-size: 11px;
-      padding: 3px 8px;
-      background: rgba(34,197,94,0.15);
-      color: var(--accent);
-      border-radius: 4px;
-      font-weight: 600;
-    }
     .playlist-card.device-active {
       border-color: var(--info, #3b82f6);
       background: rgba(59,130,246,0.06);
@@ -200,7 +186,6 @@
     .play-btn-sm.playing-now { background: var(--accent); color: #000; }
     .file-table .num { width: 32px; text-align: center; color: var(--text-dim); font-size: 11px; }
     .badge-next { font-size: 10px; background: var(--link); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
-    .badge-now { font-size: 10px; background: var(--accent); color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: 4px; }
 
     .footer { font-size:11px; color:var(--text-dim); text-align:center; margin-top:20px; }
     .server-clock { font-size: 12px; color: var(--accent); text-align: center; margin-top: 6px; font-variant-numeric: tabular-nums; }
@@ -371,14 +356,16 @@ function renderSource(src, deviceData) {
       }
       cardList.style.display = 'block';
       cardList.innerHTML = p.songs.map((song, i) => {
-        const isPlaying = i === p.current_index;
         const devicesHere = deviceMap[i] || [];
         let cls = '';
-        if (isPlaying) cls += ' playing';
         if (devicesHere.length > 0) cls += ' device-active';
-        const deviceBadges = devicesHere.map(d =>
-          `<span class="badge-device" title="上次心跳 ${d.last_seen ? new Date(d.last_seen).toLocaleTimeString('zh-CN', {hour12: false}) : '?'}">📡 ${d.id}</span>`
-        ).join('');
+        const deviceBadges = devicesHere.map(d => {
+          const pct = d.progress != null ? Math.round(d.progress * 100) : null;
+          const progressBar = pct != null
+            ? `<span class="dev-progress" style="display:inline-block;width:36px;height:3px;background:var(--border);border-radius:2px;vertical-align:middle;margin-left:2px;"><span style="display:block;width:${pct}%;height:100%;background:var(--info);border-radius:2px;"></span></span>`
+            : '';
+          return `<span class="badge-device" title="${d.id} · 上次心跳 ${d.last_seen ? new Date(d.last_seen).toLocaleTimeString('zh-CN', {hour12: false}) : '?'}${pct != null ? ' · ' + pct + '%' : ''}">📡 ${d.id}${progressBar}</span>`;
+        }).join('');
         return `
           <div class="playlist-card${cls}">
             <div class="card-num">${String(i + 1).padStart(2, '0')}</div>
@@ -387,7 +374,6 @@ function renderSource(src, deviceData) {
               ${song.intro_text ? '<div class="card-intro">' + song.intro_text + '</div>' : ''}
             </div>
             <div class="card-meta">
-              ${isPlaying ? '<span class="badge-now">▶ 播放中</span>' : ''}
               ${deviceBadges}
             </div>
           </div>

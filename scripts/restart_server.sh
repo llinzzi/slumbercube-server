@@ -1,8 +1,8 @@
 #!/bin/bash
 # Start radio_streams server (idempotent — kills any old process first)
 set -e
-cd /home/zulin/slumbercube-server
-export PATH=/home/zulin/.nvm/versions/node/v20.20.2/bin:$PATH
+cd "$(dirname "$0")/.."
+export PATH="$HOME/.nvm/versions/node/$(node --version 2>/dev/null || echo 'v20' | sed 's/v//')/bin:$PATH"
 export TZ=Asia/Shanghai
 
 # Kill any existing node server.js — match both bare and absolute paths

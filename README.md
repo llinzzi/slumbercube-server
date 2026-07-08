@@ -11,7 +11,7 @@
 
 ## 这是什么
 
-`安睡小方 Server` (Slumber Cube Server) 是一个跑在一台小服务器（默认 `192.168.8.192`）上的 Node.js 服务，配套床头 ESP32 设备使用。它每天自动从网易云下载合适的歌 → 让 LLM 写一段贴合天气和场景的播报词 → TTS 合成 → 拼接成可直接播放的 mp3 → 房间里的 ESP32 设备（OLED 屏 + 小喇叭）定时拉一首播。
+`安睡小方 Server` (Slumber Cube Server) 是一个跑在小服务器上的 Node.js 服务，配套床头 ESP32 设备使用。它每天自动从网易云下载合适的歌 → 让 LLM 写一段贴合天气和场景的播报词 → TTS 合成 → 拼接成可直接播放的 mp3 → 房间里的 ESP32 设备（OLED 屏 + 小喇叭）定时拉一首播。
 
 所有"智能"的部分（选歌、选歌单、写词）都可被替换成固定配置运行，所以即使 LLM / TTS 全部挂掉，整个链路也只会 fallback 到老的"按 score 排序"逻辑继续工作。
 
@@ -43,7 +43,7 @@
 
 ```mermaid
 graph TB
-  subgraph "192.168.8.192 — 本仓库 source of truth"
+  subgraph "Your Server — 本仓库 source of truth"
     S[server.js :3000<br/>Express + EJS + lowdb]
     W[dj_worker.js<br/>场景任务 daemon]
     N[ncm sidecar :3001<br/>NeteaseCloudMusicApi]
@@ -127,7 +127,7 @@ node scripts/dj_worker.js   # 场景任务后台（另开终端 / 配 watchdog�
 
 | 分组 | 字段 | 说明 |
 |------|------|------|
-| **天气** | host | QWeather 反代域名，默认 `nn3aaqw4wr.re.qweatherapi.com` |
+| **天气** | host | QWeather API 域名（免费注册 https://dev.qweather.com/） |
 | | apiKey | 默认值已可工作；自己的 key 优先 |
 | | 当前城市 | 在 UI 搜索，存到 `config/weather.json` |
 | **minimax** | apiKey | LLM + TTS 共用 token；fallback 到 `~/.mmx/config.json` |
@@ -262,9 +262,9 @@ Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用�
 无 systemd（无 sudo），用 crontab `@reboot` 起 3 个 watchdog：
 
 ```cron
-@reboot /home/zulin/ncm-api/ncm-watchdog.sh >/dev/null 2>&1
-@reboot /home/zulin/slumbercube-server/radio-watchdog.sh >/dev/null 2>&1
-@reboot /home/zulin/slumbercube-server/dj-worker-watchdog.sh >/dev/null 2>&1
+@reboot /path/to/ncm-api/ncm-watchdog.sh >/dev/null 2>&1
+@reboot /path/to/slumbercube-server/radio-watchdog.sh >/dev/null 2>&1
+@reboot /path/to/slumbercube-server/dj-worker-watchdog.sh >/dev/null 2>&1
 ```
 
 每个 watchdog 每 5 秒 `pgrep`，死了就重启。手动起也可以：

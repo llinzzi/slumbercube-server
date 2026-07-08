@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS = {
     // config/settings.json (configured via /settings UI) or the
     // server's /api/weather endpoint.
     apiKey: 'YOUR_QWEATHER_API_KEY_HERE',
-    host:   'nn3aaqw4wr.re.qweatherapi.com',
+    host:   '',  // Your QWeather API host (sign up at https://dev.qweather.com/)
   },
   minimax: {
     apiKey:         '',
@@ -55,7 +55,7 @@ const DEFAULT_SETTINGS = {
     ttsVoiceId:     'male-qn-qingse',
   },
   library: {
-    stationsDir: '/home/zulin/Music/网易云收藏',
+    stationsDir: process.env.STATIONS_DIR || path.join(os.homedir(), 'Music', '网易云收藏'),
   },
 };
 
@@ -95,7 +95,6 @@ function detectMmxBin() {
   if (process.env.MMX_BIN && fs.existsSync(process.env.MMX_BIN)) return process.env.MMX_BIN;
   const candidates = [
     '/opt/homebrew/bin/mmx',
-    '/home/zulin/.nvm/versions/node/v20.20.2/bin/mmx',
     '/usr/local/bin/mmx',
   ];
   for (const p of candidates) {
@@ -243,7 +242,7 @@ function getSceneLabel(sceneHints, sceneKey) {
 // ---------------------------------------------------------------
 // Qweather 7d — only needed for ${weatherToday}/${weatherTomorrow}
 // placeholders in the user template. Mirrors the host/key from
-// server.js (余杭, 101210106) but stays a self-contained copy
+// server.js (configurable via /settings UI) but stays a self-contained copy
 // because build_playlist_from_result.js is run standalone and
 // importing server.js would drag in Express + Express state.
 // ---------------------------------------------------------------

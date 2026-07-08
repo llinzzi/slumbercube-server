@@ -34,7 +34,7 @@ const PLAYLIST_ROOT = path.join(PROJECT_ROOT, '.radio_playlist');
 const PLAYLIST_JSON = path.join(PLAYLIST_ROOT, 'current.json');
 const PLAYLIST_LINK = path.join(PLAYLIST_ROOT, 'current');
 const INTRO_REL_DIR = 'intros';
-const STATIONS_DIR = process.env.STATIONS_DIR || '/home/zulin/Music/电台';
+const STATIONS_DIR = process.env.STATIONS_DIR || path.join(os.homedir(), 'Music', '电台');
 const STATE_FILE = path.join(PROJECT_ROOT, '.radio_state.json');
 const RECOMMENDED_FILE = path.join(PLAYLIST_ROOT, 'recommended_songs.json');
 const SERVER_URL = process.env.RADIO_SERVER_URL || 'http://127.0.0.1:3000';
@@ -85,7 +85,6 @@ function detectMmxBin() {
   if (process.env.MMX_BIN && fs.existsSync(process.env.MMX_BIN)) return process.env.MMX_BIN;
   const candidates = [
     '/opt/homebrew/bin/mmx',
-    '/home/zulin/.nvm/versions/node/v20.20.2/bin/mmx',
     '/usr/local/bin/mmx',
   ];
   for (const p of candidates) {
@@ -304,12 +303,12 @@ function findSongFile(name) {
 // ---------------------------------------------------------------------------
 // NeteaseCloudMusicApi integration (branch feat/netease-only)
 // ---------------------------------------------------------------------------
-// The sidecar process must be running on this port (see README — started
-// via /home/zulin/ncm-api/start.sh). All requests are anonymous — no
+// The sidecar process must be running on this port (see README).
+// All requests are anonymous — no
 // login cookie, no VIP. Anonymous requests can still resolve search,
 // playlist detail, and 320kbps song URLs for free content.
 const NETEASE_API = process.env.NETEASE_API || 'http://127.0.0.1:3001';
-const NETEASE_DOWNLOAD_DIR = '/home/zulin/Music/网易云收藏';
+const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 const NETEASE_REQUEST_TIMEOUT = 8000;  // ms — search + song/url each have budget
 
 // Sanitize a song name for use as a filename. Chinese chars are kept;
@@ -375,7 +374,7 @@ async function downloadToFile(remoteUrl, destPath) {
 }
 
 // Combined helper used by main(). Resolves (name, artist) on netease
-// and downloads the 320kbps MP3 to /home/zulin/Music/网易云收藏/. Returns the
+// and downloads the 320kbps MP3 to NETEASE_DOWNLOAD_DIR. Returns the
 // absolute file path on success, or null if any step failed (search
 // miss, VIP-only, network error). Failures are logged but never throw
 // — caller decides what to do.
@@ -561,7 +560,7 @@ async function main() {
   //    We NO LONGER scan /mnt/music. The LLM generates song names from
   //    its own knowledge ("凭空"), and we resolve each pick via the
   //    NeteaseCloudMusicApi sidecar running on localhost:3001. Every
-  //    successfully downloaded track lands in /home/zulin/Music/网易云收藏/,
+  //    successfully downloaded track lands in NETEASE_DOWNLOAD_DIR,
   //    so subsequent runs re-discover them as a real station if we ever
   //    re-enable local scanning.
   //
@@ -717,7 +716,7 @@ Summer | 久石让 | 窗外的阳光像蜂蜜一样黏在川川的睫毛上，�
   log('--- END ---');
 
   // 4b. netease search + download — for each AI pick, find the real
-  // track on 网易云 and download the 320kbps MP3 to /home/zulin/Music/网易云收藏/.
+  // track on 网易云 and download the 320kbps MP3 to NETEASE_DOWNLOAD_DIR.
   // The downloaded file becomes the new "songPath" the rest of the
   // pipeline expects.
   //
