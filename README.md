@@ -162,34 +162,34 @@ DJ Agent 的核心是 `config/intro_prompts.json` 里的几组 prompt（全部�
 
 ```mermaid
 sequenceDiagram
-  participant C as crontab / 🏃
-  participant S as server.js
-  participant W as dj_worker
-  participant SF as scene_fetch
-  participant NCM as :3001
-  participant LLM as MiniMax
-  participant TTS as MiniMax TTS
-  participant LAME as lame
-  participant F as .radio_playlist
+  participant C as "crontab / trigger"
+  participant S as "server.js"
+  participant W as "dj_worker"
+  participant SF as "scene_fetch"
+  participant BP as "build_playlist"
+  participant NCM as "NCM :3001"
+  participant LLM as "MiniMax-M3"
+  participant TTS as "MiniMax TTS"
+  participant LAME as "lame"
+  participant F as ".radio_playlist"
 
-  C->>S: POST /api/dj/trigger {scene, volume}
-  S->>S: currentVolume = volume; saveState()
-  S->>F: write trigger
-  W->>F: poll → detect trigger
-  W->>SF: spawn scene_fetch.js (DJ_SCENE=xxx)
-  SF->>S: GET /api/weather (cached, 1 min TTL)
-  SF->>LLM: 1) 场景 + 历史 → 搜索词 (keyword_generator)
-  SF->>NCM: searchPlaylists(kw, 10)  ×  多个 kw
-  SF->>LLM: 2) 候选列表 → 选 1 个歌单 (playlist_selector)
-  SF->>NCM: playlist.detail → 歌单曲目
-  SF->>NCM: download url × 20
-  SF->>F: playlist.json
-  W->>BP: spawn build_playlist_from_result.js
-  BP->>LLM: 3) 20 首歌 + weather → 20 个 intro (batch)
-  BP->>TTS: 4) intro × 20 → mp3
-  BP->>LAME: 5) decode → mono2stereo → re-encode (44.1kHz)
-  BP->>F: 6) stitch: intro+mp3 → stitched/<n>.mp3
-  BP->>F: current.json 原子切换
+  C->>S: "POST /api/dj/trigger (scene, volume)"
+  S->>S: "set volume; save state"
+  S->>F: "write trigger"
+  W->>F: "poll, detect trigger"
+  W->>SF: "spawn scene_fetch.js"
+  SF->>S: "GET /api/weather (cached, 1 min TTL)"
+  SF->>LLM: "1) keywords from scene + history"
+  SF->>NCM: "searchPlaylists(kw, 10)"
+  SF->>LLM: "2) pick best playlist"
+  SF->>NCM: "playlist detail, download url x20"
+  SF->>F: "write playlist.json"
+  W->>BP: "spawn build_playlist_from_result.js"
+  BP->>LLM: "3) 20 songs + weather → 20 intros"
+  BP->>TTS: "4) intros x20 → mp3"
+  BP->>LAME: "5) decode, mono2stereo, re-encode 44.1kHz"
+  BP->>F: "6) stitch: intro + mp3"
+  BP->>F: "atomically swap current.json"
 ```
 
 Intro 解析器（worker 兼容层）：LLM 输出格式不固定，worker 用三段策略自动解析：
