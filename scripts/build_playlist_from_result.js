@@ -663,6 +663,33 @@ async function ttsApi(text, outPath, timeoutMs = 30000) {
   }
 }
 
+// Transcode a downloaded NCM song to the same parameters as the TTS
+// intro (128kbps 44100Hz stereo), so the stitched file has consistent
+// encoding throughout. Without this, the ESP32 decoder may fail at the
+// transition point when the song has different bitrate/sample-rate/channel
+// (common: 320kbps 48kHz mono from NCM vs 128kbps 44.1kHz stereo intro).
+async function normalizeSongToMatchIntro(srcPath, dstPath) {
+  const tmpWav = srcPath + '.norm.wav';
+  try {
+    const env = Object.assign({}, process.env, {
+      LD_LIBRARY_PATH: LAME_LIB_DIR + ':' + (process.env.LD_LIBRARY_PATH || ''),
+    });
+    log(`    normalizing song → 128kbps 44.1kHz stereo…`);
+    // Decode to PCM, then re-encode with LAME -m s (forced stereo).
+    // LAME handles mono→stereo internally, so no separate mono2stereo
+    // step is needed — and this avoids the "Input is not mono" error
+    // on songs that are already stereo.
+    await execAsync(`${LAME_BIN} --decode ${JSON.stringify(srcPath)} ${JSON.stringify(tmpWav)}`, { env, timeout: 60000 });
+    await execAsync(`${LAME_BIN} -b 128 -m s --resample 44.1 ${JSON.stringify(tmpWav)} ${JSON.stringify(dstPath)}`, { env, timeout: 60000 });
+    return fs.existsSync(dstPath) && fs.statSync(dstPath).size > 1000;
+  } catch (e) {
+    log('    song normalize failed:', e.message.slice(0, 200));
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpWav); } catch {}
+  }
+}
+
 async function transcodeToStereo(srcPath, dstPath) {
   const tmpWav = srcPath + '.wav';
   const tmpStereo = srcPath + '.st.wav';
@@ -781,9 +808,20 @@ async function buildOneSong(song, idx, total, scene, stamp, introsDir, playlist,
   if (!songPath || !fs.existsSync(songPath)) {
     throw new Error(`song file missing: ${songPath}`);
   }
+
+  // Normalize the song to match the intro's encoding (128kbps 44.1kHz
+  // stereo). Direct concatenation of differently-encoded MP3s causes
+  // ESP32 decoder sync loss at the transition point when parameters
+  // differ (NCM CDN serves 320kbps 48kHz mono; the intro is 128kbps
+  // 44.1kHz dual-channel from LAME).
+  const songNormalized = path.join(introsDir, `${idx}.song.mp3`);
+  const songOk = await normalizeSongToMatchIntro(songPath, songNormalized);
+  if (!songOk) throw new Error('song normalize failed');
+
   const introBuf = fs.readFileSync(introFile);
-  const songBuf = fs.readFileSync(songPath);
+  const songBuf = fs.readFileSync(songNormalized);
   fs.writeFileSync(stitchedFile, Buffer.concat([introBuf, songBuf]));
+  try { fs.unlinkSync(songNormalized); } catch {}
   const sizeKb = Math.round(fs.statSync(stitchedFile).size / 1024);
   log(`  ✓ stitched (${sizeKb} KB)`);
 

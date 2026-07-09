@@ -236,6 +236,28 @@ async function ttsApi(text, outPath, timeoutMs = 30000) {
   }
 }
 
+// Transcode a downloaded NCM song to match the intro's encoding parameters
+// (128kbps 44.1kHz stereo). Avoids decoder sync loss on ESP32 when the
+// stitched file has a parameter discontinuity (NCM: 320kbps 48kHz mono;
+// intro: 128kbps 44.1kHz stereo).
+async function normalizeSongToMatchIntro(srcPath, dstPath) {
+  const tmpWav = srcPath + '.norm.wav';
+  try {
+    const env = Object.assign({}, process.env, {
+      LD_LIBRARY_PATH: LAME_LIB_DIR + ':' + (process.env.LD_LIBRARY_PATH || ''),
+    });
+    log(`    normalizing song → 128kbps 44.1kHz stereo…`);
+    await execAsync(`${LAME_BIN} --decode ${JSON.stringify(srcPath)} ${JSON.stringify(tmpWav)}`, { env, timeout: 60000 });
+    await execAsync(`${LAME_BIN} -b 128 -m s --resample 44.1 ${JSON.stringify(tmpWav)} ${JSON.stringify(dstPath)}`, { env, timeout: 60000 });
+    return fs.existsSync(dstPath) && fs.statSync(dstPath).size > 1000;
+  } catch (e) {
+    log('    song normalize failed:', e.message.slice(0, 200));
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpWav); } catch {}
+  }
+}
+
 async function transcodeToStereo(srcPath, dstPath) {
   // mmx 返回 32kHz mono MP3；ESP32 I2S mixer 需要 44.1kHz stereo MP3
   const tmpWav = srcPath + '.wav';
@@ -749,10 +771,21 @@ Summer | 久石让 | 窗外的阳光像蜂蜜一样黏在川川的睫毛上，�
       continue;
     }
     try {
+      // Normalize the song to match intro encoding before concatenation.
+      // Direct concat of 320kbps/48kHz/mono (NCM) + 128kbps/44.1kHz/stereo
+      // (intro) causes ESP32 decoder sync loss at the transition.
+      const songNormalized = path.join(introsDir, `${idx}.song.mp3`);
+      const songOk = await normalizeSongToMatchIntro(songPath, songNormalized);
+      if (!songOk) {
+        log(`  ✗ song normalize failed for "${name}", skipping`);
+        failed++;
+        reportProgress({ progress: { failed } });
+        continue;
+      }
       const introBuf = fs.readFileSync(introFile);
-      const songBuf = fs.readFileSync(songPath);
-      // For the first song, just stitch intro + song (no preamble)
+      const songBuf = fs.readFileSync(songNormalized);
       fs.writeFileSync(stitchedFile, Buffer.concat([introBuf, songBuf]));
+      try { fs.unlinkSync(songNormalized); } catch {}
     } catch (e) {
       log(`  ✗ stitch failed: ${e.message.slice(0, 100)}`);
       failed++;
