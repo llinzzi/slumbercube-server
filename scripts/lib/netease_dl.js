@@ -18,6 +18,78 @@ const path = require('path');
 const NETEASE_API = process.env.NETEASE_API || 'http://127.0.0.1:3001';
 const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
 const NETEASE_REQUEST_TIMEOUT = 8000;  // ms — search + song/url each have budget
+const MIN_SONG_SIZE = 200_000;         // bytes — below this, the file is almost certainly a trial clip or truncated download
+const MIN_SONG_DURATION = 30;          // seconds — songs shorter than this are flagged as suspicious
+
+// MPEG1 Layer 3 bitrate table (kbps), index 0-15
+const MPEG1_BITRATES = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0];
+const MPEG2_BITRATES = [0, 8,  16, 24, 32,  40,  48,  56,  64,  80,  96,  112, 128, 144, 160, 0];
+const MPEG1_SAMPLE_RATES = [44100, 48000, 32000, 0];
+const MPEG2_SAMPLE_RATES = [22050, 24000, 16000, 0];
+const MPEG25_SAMPLE_RATES = [11025, 12000, 8000,  0];
+
+// Quick duration estimate from an MP3 file without ffprobe.
+// Reads the first 8KB, finds the first valid MPEG frame header, and
+// computes duration = fileSize * 8 / bitrate. Skips ID3v2 tags.
+// Returns { bitrate, sampleRate, duration } or null on unparseable input.
+function estimateMp3Duration(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size < 1024) return null;
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(8192);
+    const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
+    fs.closeSync(fd);
+
+    // Skip ID3v2 header if present ("ID3" at offset 0)
+    let offset = 0;
+    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+      // ID3v2 size is 4 bytes at offset 6, synchsafe integer
+      const id3Size = ((buf[6] & 0x7F) << 21) | ((buf[7] & 0x7F) << 14)
+                    | ((buf[8] & 0x7F) << 7) | (buf[9] & 0x7F);
+      offset = 10 + id3Size;
+    }
+
+    // Scan for MPEG frame sync word 0xFFEx
+    for (let i = Math.max(offset, 0); i < bytesRead - 1; i++) {
+      if (buf[i] !== 0xFF) continue;
+      if ((buf[i + 1] & 0xE0) !== 0xE0) continue;
+      // Skip if next byte looks like another sync (false positive)
+      const b2 = buf[i + 1];
+      const versionIdx = (b2 >> 3) & 0x3;  // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
+      const layerIdx  = (b2 >> 1) & 0x3;   // 3=Layer1, 2=Layer2, 1=Layer3
+      if (layerIdx !== 1) continue;        // Layer 3 only
+      const b3 = buf[i + 2];
+      const bitrateIdx = (b3 >> 4) & 0xF;
+      const sampleRateIdx = (b3 >> 2) & 0x3;
+
+      if (bitrateIdx === 0 || bitrateIdx === 15) continue; // reserved / free
+
+      let bitrate, sampleRate;
+      if (versionIdx === 3) {
+        bitrate = MPEG1_BITRATES[bitrateIdx] * 1000;
+        sampleRate = MPEG1_SAMPLE_RATES[sampleRateIdx];
+      } else if (versionIdx === 2) {
+        bitrate = MPEG2_BITRATES[bitrateIdx] * 1000;
+        sampleRate = MPEG2_SAMPLE_RATES[sampleRateIdx];
+      } else {
+        continue; // MPEG2.5 — rare, skip
+      }
+
+      if (!bitrate || !sampleRate) continue;
+
+      // Duration estimate from file size. ID3v1 tag at end (128 bytes)
+      // and ID3v2 header are included in the file size, so this is a
+      // slight overestimate — acceptable for our purpose (flagging
+      // obviously-short files).
+      const duration = Math.round((stat.size * 8) / bitrate);
+      return { bitrate: Math.round(bitrate / 1000), sampleRate, duration };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // Sanitize a song name for use as a filename. Chinese chars are kept;
 // we just strip path separators and control chars. Length cap prevents
@@ -76,30 +148,90 @@ async function neteaseGetSongUrl(id) {
   };
 }
 
-// 是否 30 秒试听片段（VIP/付费歌曲对当前未登录账号的退化版）
+// 是否为短试听片段（VIP/付费歌曲对当前未登录账号的退化版）。
+//
+// 判断优先级：
+//   1. freeTrialInfo.end == 0: 有些 API 版本用 end=0 表示试听片段（0 秒
+//      意味着文件存在但内容很短）。正常歌曲不会报告 end=0。
+//   2. freeTrialInfo.end <= 90: 核心判断 —— 正常歌曲有时也会被 API 标为
+//      试听版本（例如付费歌曲对免费账号），但 end 会接近曲目长度。小于 90
+//      秒的都视为退化片段。
+//   3. fee > 0 且无登录 cookie: 强信号——几乎所有付费歌曲在没有登录 cookie
+//      时都返回试听片段。结合 size < 1MB 一起判断（一首 320kbps 90 秒的
+//      歌约 3.6MB）。
+//   4. size < 500KB 且 fee > 0: 即使 freeTrialInfo 已解除，极小的 size 也
+//      足以确认是试听（完整 320kbps 歌曲最小约 3MB）。
 function isTrialClip(urlInfo) {
   if (!urlInfo) return false;
   const fti = urlInfo.freeTrialInfo;
-  // end <= 60 视为试听；正常歌曲不会自己报告 end<duration
-  if (fti && typeof fti.end === 'number' && fti.end > 0 && fti.end <= 60) return true;
+  // end <= 90 (放宽到 90 秒)：正常歌曲的试听片段最多约 30-90 秒。
+  if (fti && typeof fti.end === 'number') {
+    if (fti.end === 0) return true;                        // 0 秒 → 极短片段
+    if (fti.end > 0 && fti.end <= 90) return true;         // ≤ 90 秒试听
+  }
+  // 付费歌曲 (fee > 0) 对非 VIP 基本是试听。结合 size 信息辅助判断：
+  // size < 500KB + fee > 0 → 极大概率是试听（完整歌至少 3MB）。
+  if (urlInfo.fee > 0 && typeof urlInfo.size === 'number' && urlInfo.size < 500_000) {
+    return true;
+  }
   return false;
 }
 
 // Download a URL to a local file. We pipe through fetch → stream so we
 // don't buffer the whole MP3 in memory (some tracks are 30MB).
-async function downloadToFile(remoteUrl, destPath) {
-  const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(60000) });
-  if (!r.ok) throw new Error(`download HTTP ${r.status}`);
-  fs.mkdirSync(path.dirname(destPath), { recursive: true });
-  const ws = fs.createWriteStream(destPath);
-  await new Promise((resolve, reject) => {
-    r.body.pipeTo(new WritableStream({
-      write(chunk) { ws.write(Buffer.from(chunk)); },
-      close() { ws.end(); },
-    })).then(resolve, reject);
-  });
-  await new Promise((resolve) => ws.on('finish', resolve));
-  return fs.statSync(destPath).size;
+//
+// Post-download validation:
+//   1. If content-length was present and the written size differs by >10%,
+//      the file is deleted and the promise rejects (caller should retry).
+//   2. If the file is smaller than MIN_SONG_SIZE (200KB), it is treated
+//      as a trial clip / truncated download — the promise rejects.
+//   3. We attempt up to `retries` times (default 1 retry = 2 total attempts)
+//      when the first download fails validation.
+async function downloadToFile(remoteUrl, destPath, retries = 1) {
+  const attempt = async () => {
+    const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(60000) });
+    if (!r.ok) throw new Error(`download HTTP ${r.status}`);
+    const contentLength = r.headers.get('content-length');
+    const expectedSize = contentLength ? parseInt(contentLength, 10) : null;
+
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    const ws = fs.createWriteStream(destPath);
+    await new Promise((resolve, reject) => {
+      r.body.pipeTo(new WritableStream({
+        write(chunk) { ws.write(Buffer.from(chunk)); },
+        close() { ws.end(); },
+      })).then(resolve, reject);
+    });
+    await new Promise((resolve) => ws.on('finish', resolve));
+    const actualSize = fs.statSync(destPath).size;
+
+    // Content-length mismatch (>10%) → truncated download
+    if (expectedSize && actualSize < expectedSize * 0.9) {
+      try { fs.unlinkSync(destPath); } catch {}
+      throw new Error(`download truncated: expected ${(expectedSize / 1024).toFixed(0)}KB, got ${(actualSize / 1024).toFixed(0)}KB`);
+    }
+
+    // File too small to be a real song
+    if (actualSize < MIN_SONG_SIZE) {
+      try { fs.unlinkSync(destPath); } catch {}
+      throw new Error(`file too small: ${(actualSize / 1024).toFixed(0)}KB < ${(MIN_SONG_SIZE / 1024).toFixed(0)}KB minimum`);
+    }
+
+    return actualSize;
+  };
+
+  for (let t = 0; t <= retries; t++) {
+    try {
+      return await attempt();
+    } catch (e) {
+      if (t < retries) {
+        // Log and retry — brief pause to avoid hammering on transient failures
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        throw e;
+      }
+    }
+  }
 }
 
 /**
@@ -135,36 +267,80 @@ async function neteaseSearchAndDownload(name, artist, { logger } = {}) {
       log(`no 320k URL for id=${hit.id} (${name} - ${artist}, likely VIP)`);
       return null;
     }
-    // ★ 跳过 30 秒试听片段（VIP/付费歌曲对非 VIP 用户的退化版）
+
+    // Build diagnostic summary for the log: fti={end, start}, fee, api_size
+    const fti = urlInfo.freeTrialInfo || null;
+    const diag = [
+      `id=${hit.id}`,
+      `fee=${urlInfo.fee ?? '?'}`,
+      `br=${urlInfo.br ?? '?'}`,
+      fti ? `fti.end=${fti.end}` : 'fti=null',
+      urlInfo.size ? `api_size=${(urlInfo.size / 1024).toFixed(0)}KB` : 'api_size=?',
+    ].join(' ');
+
+    // ★ 跳过试听片段（VIP/付费歌曲对非 VIP 用户的退化版）
     // 上层循环（scene_fetch / generate_playlist）应改用「累计成功
     // 下载 N 首」而不是「遍历前 N 首」，这样听到试听就自然换下一首。
     if (isTrialClip(urlInfo)) {
-      const end = urlInfo.freeTrialInfo.end;
-      log(`skip trial clip id=${hit.id} end=${end}s fee=${urlInfo.fee} (${name} - ${artist})`);
+      const end = fti ? fti.end : '?';
+      log(`skip trial clip ${diag} end=${end}s (${name} - ${artist})`);
       return null;
     }
+
     const safeName = sanitizeFilename(`${hit.name} - ${hit.artist}`);
     const destPath = path.join(NETEASE_DOWNLOAD_DIR, `${safeName}.mp3`);
-    const existed = fs.existsSync(destPath) && fs.statSync(destPath).size > 100_000;
+
+    // Cache hit: existing file > 200KB. We also validate the cached file's
+    // estimated duration so a previously-cached trial clip doesn't keep
+    // being reused as if it were a real song.
+    const existed = fs.existsSync(destPath);
     if (existed) {
-      log(`reusing cached file: ${destPath}`);
-      // Cache hits already have an index entry from the original
-      // download — but the original may have been recorded under a
-      // different playlist context (before this feature landed, or
-      // before the caller set the context). Re-record now to ensure
-      // the index reflects the most recent intent. Cheap; append-only
-      // dedup is done at read time.
-      appendLibraryIndex({
-        title: hit.name,
-        artist: hit.artist,
-        playlist_id: _currentPlaylist?.id ?? null,
-        playlist_name: _currentPlaylist?.name ?? null,
-        downloaded_at: new Date().toISOString(),
-      });
-      return destPath;
+      const cachedSize = fs.statSync(destPath).size;
+      if (cachedSize > MIN_SONG_SIZE) {
+        // Extra validation for cached files: check estimated duration.
+        const meta = estimateMp3Duration(destPath);
+        if (meta && meta.duration < MIN_SONG_DURATION) {
+          log(`cached file too short (est ${meta.duration}s, ${(cachedSize / 1024).toFixed(0)}KB) — re-downloading "${name} - ${artist}"`);
+          // Fall through to re-download; don't reuse this cached copy.
+        } else {
+          log(`reusing cached file: ${destPath} (${(cachedSize / 1024).toFixed(0)}KB${meta ? `, ~${meta.duration}s` : ''})`);
+          appendLibraryIndex({
+            title: hit.name,
+            artist: hit.artist,
+            playlist_id: _currentPlaylist?.id ?? null,
+            playlist_name: _currentPlaylist?.name ?? null,
+            downloaded_at: new Date().toISOString(),
+          });
+          return destPath;
+        }
+      } else {
+        // Cached file is too small — remove it and re-download.
+        log(`cached file too small (${(cachedSize / 1024).toFixed(0)}KB) — removing and re-downloading "${name} - ${artist}"`);
+        try { fs.unlinkSync(destPath); } catch {}
+      }
     }
-    const size = await downloadToFile(urlInfo.url, destPath);
-    log(`downloaded ${(size / 1024).toFixed(0)} KB → ${destPath}`);
+
+    // Download with one retry on validation failure.
+    let size;
+    try {
+      size = await downloadToFile(urlInfo.url, destPath, 1);
+    } catch (dlErr) {
+      // downloadToFile already retried once internally; surface as a
+      // permanent failure for this song.
+      log(`download failed after retry: ${dlErr.message.slice(0, 120)} — ${diag} (${name} - ${artist})`);
+      return null;
+    }
+
+    // Post-download duration validation — double-check that the
+    // downloaded file isn't a trial clip that the API mislabeled.
+    const durMeta = estimateMp3Duration(destPath);
+    if (durMeta && durMeta.duration < MIN_SONG_DURATION) {
+      log(`downloaded file too short: est ${durMeta.duration}s @ ${durMeta.bitrate}kbps, ${(size / 1024).toFixed(0)}KB — discarding (${name} - ${artist})`);
+      try { fs.unlinkSync(destPath); } catch {}
+      return null;
+    }
+
+    log(`downloaded ${(size / 1024).toFixed(0)}KB${durMeta ? `, ~${durMeta.duration}s @ ${durMeta.bitrate}kbps` : ''} → ${destPath}  [${diag}]`);
     appendLibraryIndex({
       title: hit.name,
       artist: hit.artist,

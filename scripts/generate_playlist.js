@@ -301,112 +301,13 @@ function findSongFile(name) {
 }
 
 // ---------------------------------------------------------------------------
-// NeteaseCloudMusicApi integration (branch feat/netease-only)
+// NeteaseCloudMusicApi integration — shared with scene_fetch.js through
+// scripts/lib/netease_dl.js. This module provides search, URL resolution,
+// download with trial-clip detection, post-download validation, and
+// library-index recording. All in one place so both generate_playlist.js
+// and scene_fetch.js use the same safety checks.
 // ---------------------------------------------------------------------------
-// The sidecar process must be running on this port (see README).
-// All requests are anonymous — no
-// login cookie, no VIP. Anonymous requests can still resolve search,
-// playlist detail, and 320kbps song URLs for free content.
-const NETEASE_API = process.env.NETEASE_API || 'http://127.0.0.1:3001';
-const NETEASE_DOWNLOAD_DIR = process.env.NETEASE_DOWNLOAD_DIR || path.join(os.homedir(), 'Music', '网易云收藏');
-const NETEASE_REQUEST_TIMEOUT = 8000;  // ms — search + song/url each have budget
-
-// Sanitize a song name for use as a filename. Chinese chars are kept;
-// we just strip path separators and control chars. Length cap prevents
-// runaway names from breaking ext4 (max 255 bytes).
-function sanitizeFilename(s) {
-  return s
-    .replace(/[\\/:*?"<>|\x00-\x1f]/g, '_')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-}
-
-// GET /search?keywords=... → returns first hit's id, or null
-async function neteaseSearch(name, artist) {
-  const q = encodeURIComponent(`${name} ${artist}`.trim());
-  const url = `${NETEASE_API}/search?keywords=${q}&limit=5`;
-  const r = await fetch(url, { signal: AbortSignal.timeout(NETEASE_REQUEST_TIMEOUT) });
-  if (!r.ok) throw new Error(`search HTTP ${r.status}`);
-  const j = await r.json();
-  const songs = j?.result?.songs || [];
-  if (songs.length === 0) return null;
-  // Prefer an exact name+artist match. NCM API 4.x uses `artists` (plural)
-  // and `duration` (ms) — field names changed from the legacy 0.x API.
-  const exact = songs.find(s =>
-    s.name === name && s.artists?.some(a => a.name === artist)
-  );
-  const target = exact || songs[0];
-  return {
-    id: target.id,
-    name: target.name,
-    artist: target.artists?.[0]?.name || artist,
-    duration: target.duration || 0,
-  };
-}
-
-// GET /song/url?id=...&br=320000 → returns the actual MP3 CDN URL
-async function neteaseGetSongUrl(id) {
-  const url = `${NETEASE_API}/song/url?id=${id}&br=320000`;
-  const r = await fetch(url, { signal: AbortSignal.timeout(NETEASE_REQUEST_TIMEOUT) });
-  if (!r.ok) throw new Error(`song/url HTTP ${r.status}`);
-  const j = await r.json();
-  const item = j?.data?.[0];
-  if (!item?.url) return null;  // VIP-only or geo-blocked
-  return { url: item.url, size: item.size, br: item.br };
-}
-
-// Download a URL to a local file. We pipe through fetch → stream so we
-// don't buffer the whole MP3 in memory (some tracks are 30MB).
-async function downloadToFile(remoteUrl, destPath) {
-  const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(60000) });
-  if (!r.ok) throw new Error(`download HTTP ${r.status}`);
-  fs.mkdirSync(path.dirname(destPath), { recursive: true });
-  const ws = fs.createWriteStream(destPath);
-  await new Promise((resolve, reject) => {
-    r.body.pipeTo(new WritableStream({
-      write(chunk) { ws.write(Buffer.from(chunk)); },
-      close() { ws.end(); },
-    })).then(resolve, reject);
-  });
-  await new Promise((resolve) => ws.on('finish', resolve));
-  return fs.statSync(destPath).size;
-}
-
-// Combined helper used by main(). Resolves (name, artist) on netease
-// and downloads the 320kbps MP3 to NETEASE_DOWNLOAD_DIR. Returns the
-// absolute file path on success, or null if any step failed (search
-// miss, VIP-only, network error). Failures are logged but never throw
-// — caller decides what to do.
-async function neteaseSearchAndDownload(name, artist) {
-  try {
-    const hit = await neteaseSearch(name, artist);
-    if (!hit) {
-      log(`  [netease] no search result for "${name} - ${artist}"`);
-      return null;
-    }
-    const urlInfo = await neteaseGetSongUrl(hit.id);
-    if (!urlInfo) {
-      log(`  [netease] no 320k URL for id=${hit.id} (${name} - ${artist}, likely VIP)`);
-      return null;
-    }
-    // Filename: "{name} - {artist}.mp3" (sanitized). If file already
-    // exists with the same name, we reuse it — re-running the same
-    // batch is idempotent and avoids hammering netease's CDN.
-    const safeName = sanitizeFilename(`${hit.name} - ${hit.artist}`);
-    const destPath = path.join(NETEASE_DOWNLOAD_DIR, `${safeName}.mp3`);
-    if (fs.existsSync(destPath) && fs.statSync(destPath).size > 100_000) {
-      log(`  [netease] reusing cached file: ${destPath}`);
-      return destPath;
-    }
-    const size = await downloadToFile(urlInfo.url, destPath);
-    log(`  [netease] downloaded ${(size / 1024).toFixed(0)} KB → ${destPath}`);
-    return destPath;
-  } catch (e) {
-    log(`  [netease] error for "${name} - ${artist}": ${e.message.slice(0, 150)}`);
-    return null;
-  }
-}
+const { neteaseSearchAndDownload, setCurrentPlaylist } = require('./lib/netease_dl');
 
 function loadAllTracks() {
   // Scan all stations for MP3 files, exclude songs unchecked in 曲目库
