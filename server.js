@@ -2507,6 +2507,17 @@ app.get('/api/dj/persona', (req, res) => {
 });
 
 app.post('/api/dj/persona', express.json({ limit: '64kb' }), (req, res) => {
+  // Localhost-only gate (finding #2). POST writes attacker-controlled
+  // strings into the LLM system prompt + TTS broadcast. The /dj editor
+  // is operator-only by intent and the operator opens it from the same
+  // machine the server runs on, so 127.0.0.1 covers the supported
+  // workflow. GET stays open (info disclosure is low severity; this
+  // is the lowest-friction fix for the P0 attack chain).
+  const ip = req.ip || '';
+  const isLoopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (!isLoopback) {
+    return res.status(403).json({ error: 'persona editing requires loopback connection' });
+  }
   try {
     const incoming = req.body || {};
     // Build a candidate by overlaying the incoming fields on top of the
