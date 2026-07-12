@@ -388,8 +388,15 @@ function readBoxState() {
 function readRecentIntros(scene, n = 5) {
   try {
     const records = sceneAudit.readAll(scene);
+    // Source-tagged filter (finding #3): only persona-generated intros
+    // participate in dedup. Fallback intros are deterministic templates
+    // (3 patterns cycling) — re-feeding them as dedup context would
+    // just teach the LLM that "all intros look like the same 3 shapes"
+    // and starve real variety. Untagged legacy entries (no source field)
+    // are also excluded — they pre-date the persona migration and
+    // shouldn't influence new prompts.
     return records
-      .filter(r => r && typeof r.intro === 'string' && r.intro)
+      .filter(r => r && typeof r.intro === 'string' && r.intro && r.source === 'persona')
       .slice(-n)
       .map(r => r.intro);
   } catch { return []; }
