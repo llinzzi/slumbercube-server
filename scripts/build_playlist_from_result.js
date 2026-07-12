@@ -460,123 +460,157 @@ async function generatePersonaIntrosBatch(songs, scene, promptCfg, log) {
     },
   }, null, 2);
 
-  try {
-    const text = await anthropicChat(systemPrompt, userPrompt, 90000);
-    if (!text) {
-      log('  anthropic returned null');
-      return { introMap: new Map(), prompt: userPrompt, response: '', httpRequest: anthropicHttpRequest, persona };
+  // Retry loop (R6): parse failures get re-called with the prior error
+  // in the user prompt so the LLM can self-correct format. Max 3
+  // retries (4 total attempts). After exhaustion we fall back to
+  // persona's fallback_intros — never restore the generic
+  // "接下来请欣赏" template.
+  const MAX_RETRIES = 3;
+  let lastError = '';
+  let lastRaw = '';
+  let lastAttemptPrompt = userPrompt;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+    const currentPrompt = attempt === 1
+      ? userPrompt
+      : `${userPrompt}\n\n【上一次解析失败】${lastError}\n请重新输出，严格遵守格式：共 ${songs.length} 段，每段以《歌名》开头，段与段之间空一行。`;
+
+    let text;
+    try {
+      text = await anthropicChat(systemPrompt, currentPrompt, 90000);
+    } catch (e) {
+      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] API error: ${e.message.slice(0, 100)}`);
+      lastError = e.message.slice(0, 200);
+      continue;
     }
-    const raw = text;
-    let clean = raw
+    if (!text) {
+      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] anthropic returned null`);
+      lastError = 'API returned null';
+      continue;
+    }
+    lastRaw = text;
+    lastAttemptPrompt = currentPrompt;
+
+    const clean = text
       .replace(/<\s*think[\s\S]*?<\s*\/\s*think\s*>/g, '')
       .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '');
-    clean = clean.trim();
+      .replace(/\s*```\s*$/, '')
+      .trim();
 
-    // Persona prompt asks for paragraph format (one paragraph per song,
-    // separated by blank lines). JSON-array output is accepted too
-    // because the model occasionally drifts back to it.
-    let parsed = null;
-    try { parsed = JSON.parse(clean); } catch {}
-
-    const out = new Map();
-    const introsForAudit = [];
-
-    if (Array.isArray(parsed)) {
-      // JSON-array path
-      for (let i = 0; i < songs.length && i < parsed.length; i++) {
-        const item = parsed[i];
-        let intro = '';
-        if (typeof item === 'string') intro = item.trim();
-        else if (item && typeof item === 'object') {
-          intro = (item.intro || item.announcement || item.text || '').toString().trim();
-        }
-        intro = intro.replace(/^["「']|["」']$/g, '');
-        if (intro.length >= 4 && intro.length <= 400) {
-          out.set(songs[i].name, intro);
-          introsForAudit.push({ song_name: songs[i].name, intro });
-        } else {
-          log(`  intro rejected for "${songs[i].name}" (len=${intro.length}): ${intro.slice(0, 30)}`);
+    const { introMap, introsForAudit, attributionNote } = parsePersonaIntros(clean, songs, log);
+    if (introMap.size === songs.length) {
+      // Full attribution — audit write + return.
+      for (const entry of introsForAudit) {
+        try {
+          sceneAudit.append(scene, { scene, song_name: entry.song_name, intro: entry.intro, source: 'persona' });
+        } catch (e) {
+          log(`  audit write failed for "${entry.song_name}": ${e.message.slice(0, 100)}`);
         }
       }
-    } else {
-      // Paragraph path (the persona prompt's preferred shape)
-      const paragraphs = clean.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-      const targetCount = songs.length;
-
-      // Strategy 1: exact count
-      let useParas = paragraphs.length === targetCount ? paragraphs : null;
-
-      // Strategy 2: count >= target — attribute by song name
-      if (!useParas && paragraphs.length >= targetCount) {
-        const matched = new Array(targetCount).fill(null);
-        const used = new Set();
-        for (let i = 0; i < songs.length; i++) {
-          const song = songs[i];
-          const escName = song.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const patWrap = new RegExp('《\\s*' + escName + '\\s*》');
-          let found = -1;
-          for (let j = 0; j < paragraphs.length; j++) {
-            if (used.has(j)) continue;
-            if (patWrap.test(paragraphs[j])) { found = j; break; }
-          }
-          if (found < 0) {
-            const patBare = new RegExp(escName);
-            for (let j = 0; j < paragraphs.length; j++) {
-              if (used.has(j)) continue;
-              if (patBare.test(paragraphs[j])) { found = j; break; }
-            }
-          }
-          if (found >= 0) { matched[i] = paragraphs[found]; used.add(found); }
-        }
-        if (matched.every(p => p !== null)) useParas = matched;
-      }
-
-      if (!useParas) {
-        log(`  paragraph attribution failed: ${paragraphs.length} paragraphs vs ${songs.length} songs`);
-        return { introMap: new Map(), prompt: userPrompt, response: raw, httpRequest: anthropicHttpRequest, persona };
-      }
-
-      for (let i = 0; i < songs.length; i++) {
-        let cleaned = useParas[i];
-        cleaned = cleaned
-          .replace(/^\s*【[^】]+】\s*/, '')
-          .replace(/^\s*第\s*\d+\s*首[：:\s]*/, '')
-          .replace(/^\s*\d+[\.、。)【]\s*/, '')
-          .trim();
-        const splitMatch = cleaned.match(/^(《[^》]+》)\s*\n\s*(.+)$/s);
-        if (splitMatch) cleaned = splitMatch[1] + splitMatch[2];
-        if (cleaned.length >= 4 && cleaned.length <= 400) {
-          out.set(songs[i].name, cleaned);
-          introsForAudit.push({ song_name: songs[i].name, intro: cleaned });
-        } else {
-          log(`  intro rejected for "${songs[i].name}" (len=${cleaned.length}): ${cleaned.slice(0, 30)}`);
-        }
-      }
+      return { introMap, prompt: currentPrompt, response: text, httpRequest: anthropicHttpRequest, persona };
     }
-
-    // Per-intro write to data/scene_audit/<scene>.jsonl. Resolves the
-    // P0 audit-log gap surfaced by doc review — scene_fetch writes
-    // playlist-level metadata only; without these per-intro lines the
-    // dedup feed has nothing to read.
-    for (const entry of introsForAudit) {
-      try {
-        sceneAudit.append(scene, {
-          scene,
-          song_name: entry.song_name,
-          intro: entry.intro,
-          source: 'persona',
-        });
-      } catch (e) {
-        log(`  audit write failed for "${entry.song_name}": ${e.message.slice(0, 100)}`);
-      }
-    }
-
-    return { introMap: out, prompt: userPrompt, response: raw, httpRequest: anthropicHttpRequest, persona };
-  } catch (e) {
-    log(`  persona batch anthropic chat failed: ${e.message.slice(0, 200)}`);
-    return { introMap: new Map(), prompt: userPrompt, response: '', httpRequest: anthropicHttpRequest, persona };
+    lastError = `attribution ${attributionNote || introMap.size + '/' + songs.length}`;
+    log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] ${lastError}; retrying…`);
   }
+
+  // Retries exhausted — persona-authored fallback_intros (one random
+  // pick per song). Writes audit so the dedup loop sees the fallback
+  // theme and doesn't try to "dedup against" the same shape again.
+  log(`  retries exhausted (${MAX_RETRIES}); using persona fallback_intros`);
+  const out = new Map();
+  const introsForAudit = [];
+  for (const song of songs) {
+    const fallback = personaPrompt.pickFallbackIntro(persona, song.name);
+    out.set(song.name, fallback);
+    introsForAudit.push({ song_name: song.name, intro: fallback });
+  }
+  for (const entry of introsForAudit) {
+    try {
+      sceneAudit.append(scene, { scene, song_name: entry.song_name, intro: entry.intro, source: 'persona-fallback' });
+    } catch (e) {
+      log(`  fallback audit write failed for "${entry.song_name}": ${e.message.slice(0, 100)}`);
+    }
+  }
+  return { introMap: out, prompt: lastAttemptPrompt, response: lastRaw, httpRequest: anthropicHttpRequest, persona, fellBackToPersona: true };
+}
+
+// Parse the LLM's free-form response into introMap + introsForAudit.
+// Tries JSON-array first (the model occasionally reverts to it); falls
+// through to paragraph attribution by song name (the persona prompt's
+// preferred shape). Returns attributionNote so the retry loop can
+// build a useful error message for the next attempt's prompt.
+function parsePersonaIntros(clean, songs, log) {
+  let parsed = null;
+  try { parsed = JSON.parse(clean); } catch {}
+
+  const introMap = new Map();
+  const introsForAudit = [];
+
+  if (Array.isArray(parsed)) {
+    for (let i = 0; i < songs.length && i < parsed.length; i++) {
+      const item = parsed[i];
+      let intro = '';
+      if (typeof item === 'string') intro = item.trim();
+      else if (item && typeof item === 'object') {
+        intro = (item.intro || item.announcement || item.text || '').toString().trim();
+      }
+      intro = intro.replace(/^["「']|["」']$/g, '');
+      if (intro.length >= 4 && intro.length <= 400) {
+        introMap.set(songs[i].name, intro);
+        introsForAudit.push({ song_name: songs[i].name, intro });
+      }
+    }
+    return { introMap, introsForAudit, attributionNote: `JSON path: ${introMap.size}/${songs.length}` };
+  }
+
+  // Paragraph path
+  const paragraphs = clean.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const targetCount = songs.length;
+  let useParas = paragraphs.length === targetCount ? paragraphs : null;
+
+  if (!useParas && paragraphs.length >= targetCount) {
+    const matched = new Array(targetCount).fill(null);
+    const used = new Set();
+    for (let i = 0; i < songs.length; i++) {
+      const song = songs[i];
+      const escName = song.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patWrap = new RegExp('《\\s*' + escName + '\\s*》');
+      let found = -1;
+      for (let j = 0; j < paragraphs.length; j++) {
+        if (used.has(j)) continue;
+        if (patWrap.test(paragraphs[j])) { found = j; break; }
+      }
+      if (found < 0) {
+        const patBare = new RegExp(escName);
+        for (let j = 0; j < paragraphs.length; j++) {
+          if (used.has(j)) continue;
+          if (patBare.test(paragraphs[j])) { found = j; break; }
+        }
+      }
+      if (found >= 0) { matched[i] = paragraphs[found]; used.add(found); }
+    }
+    if (matched.every(p => p !== null)) useParas = matched;
+  }
+
+  if (!useParas) {
+    return { introMap, introsForAudit, attributionNote: `${paragraphs.length} paragraphs vs ${songs.length} songs` };
+  }
+
+  for (let i = 0; i < songs.length; i++) {
+    let cleaned = useParas[i];
+    cleaned = cleaned
+      .replace(/^\s*【[^】]+】\s*/, '')
+      .replace(/^\s*第\s*\d+\s*首[：:\s]*/, '')
+      .replace(/^\s*\d+[\.、。)【]\s*/, '')
+      .trim();
+    const splitMatch = cleaned.match(/^(《[^》]+》)\s*\n\s*(.+)$/s);
+    if (splitMatch) cleaned = splitMatch[1] + splitMatch[2];
+    if (cleaned.length >= 4 && cleaned.length <= 400) {
+      introMap.set(songs[i].name, cleaned);
+      introsForAudit.push({ song_name: songs[i].name, intro: cleaned });
+    }
+  }
+  return { introMap, introsForAudit, attributionNote: `paragraph path: ${introMap.size}/${songs.length}` };
 }
 
 // ---------- mmx text chat: BATCH intro generation ----------
