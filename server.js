@@ -2530,6 +2530,41 @@ app.post('/api/dj/persona', express.json({ limit: '64kb' }), (req, res) => {
       address:             (incoming.address             && typeof incoming.address             === 'object') ? incoming.address             : base.address,
       fallback_intros:           Array.isArray(incoming.fallback_intros)           ? incoming.fallback_intros           : (base.fallback_intros || []),
     };
+    // Per-field length caps (finding #6). Without these, a multi-KB
+    // self_description or 100KB fallback_intros array inflates the
+    // system prompt past the LLM context window. Caps are generous
+    // — the persona file's actual content fits well under them.
+    const MAX_NAME = 64;
+    const MAX_FIELD_STRING = 2048;
+    const MAX_ARRAY_ITEM = 512;
+    const MAX_FALLBACK_INTROS_ITEMS = 32;
+    if (typeof candidate.name === 'string' && candidate.name.length > MAX_NAME) {
+      return res.status(400).json({ error: `name exceeds ${MAX_NAME} chars` });
+    }
+    for (const k of ['creator', 'lore', 'note', 'default_visibility']) {
+      if (candidate.origin && typeof candidate.origin[k] === 'string' && candidate.origin[k].length > MAX_FIELD_STRING) {
+        return res.status(400).json({ error: `origin.${k} exceeds ${MAX_FIELD_STRING} chars` });
+      }
+    }
+    if (candidate.identity && typeof candidate.identity.self_description === 'string'
+        && candidate.identity.self_description.length > MAX_FIELD_STRING) {
+      return res.status(400).json({ error: `identity.self_description exceeds ${MAX_FIELD_STRING} chars` });
+    }
+    for (const arrKey of ['speaking_habits', 'self_perception_dimensions', 'prohibitions']) {
+      for (const item of (candidate[arrKey] || [])) {
+        if (typeof item === 'string' && item.length > MAX_ARRAY_ITEM) {
+          return res.status(400).json({ error: `${arrKey} item exceeds ${MAX_ARRAY_ITEM} chars` });
+        }
+      }
+    }
+    if (candidate.fallback_intros.length > MAX_FALLBACK_INTROS_ITEMS) {
+      return res.status(400).json({ error: `fallback_intros exceeds ${MAX_FALLBACK_INTROS_ITEMS} items` });
+    }
+    for (const item of candidate.fallback_intros) {
+      if (typeof item === 'string' && item.length > MAX_FIELD_STRING) {
+        return res.status(400).json({ error: 'fallback_intros item exceeds ' + MAX_FIELD_STRING + ' chars' });
+      }
+    }
     // Field-level validation with clear error messages. Matches the
     // schema that build_playlist_from_result.js depends on.
     const required = ['name', 'identity', 'origin', 'speaking_habits', 'self_perception_dimensions', 'prohibitions', 'sensory_description', 'address', 'fallback_intros'];
@@ -2543,13 +2578,25 @@ app.post('/api/dj/persona', express.json({ limit: '64kb' }), (req, res) => {
     if (!Array.isArray(candidate.fallback_intros) || candidate.fallback_intros.length === 0) {
       return res.status(400).json({ error: 'fallback_intros must be a non-empty array' });
     }
-    // Atomic write — same pattern server.js uses for intro-prompts.
-    // Critical for KTD4 hot-reload: a half-written file would otherwise
-    // be read mid-flush by the next scene trigger.
+    // Atomic write — unique tmp suffix + EXDEV fallback addresses
+    // finding #5: fixed .tmp path raced under concurrent POSTs, and
+    // renameSync throws on cross-device moves (macOS symlinked config).
     fs.mkdirSync(path.dirname(PERSONA_PATH), { recursive: true });
-    const tmp = PERSONA_PATH + '.tmp';
+    const tmp = `${PERSONA_PATH}.tmp.${process.pid}.${Date.now()}`;
     fs.writeFileSync(tmp, JSON.stringify(candidate, null, 2));
-    fs.renameSync(tmp, PERSONA_PATH);
+    try {
+      fs.renameSync(tmp, PERSONA_PATH);
+    } catch (e) {
+      if (e && e.code === 'EXDEV') {
+        // Cross-device — copy then unlink as a portable fallback.
+        const buf = fs.readFileSync(tmp);
+        fs.writeFileSync(PERSONA_PATH, buf);
+        try { fs.unlinkSync(tmp); } catch {}
+      } else {
+        try { fs.unlinkSync(tmp); } catch {}
+        throw e;
+      }
+    }
     res.json({ ok: true, config: candidate });
   } catch (e) {
     res.status(500).json({ error: e.message });

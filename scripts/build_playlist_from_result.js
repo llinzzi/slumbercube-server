@@ -396,12 +396,14 @@ function readRecentIntros(scene, n = 5) {
 }
 
 async function loadPersonaContext(scene) {
-  let weather = '', city = '';
-  try {
-    const daily = await fetchWeather7d();
-    if (daily && daily[0]) weather = formatWeatherLine(daily[0]);
-  } catch {}
-  try { city = await fetchCity(); } catch {}
+  // Run weather + city fetches in parallel — each has its own 5s
+  // timeout; sequential would burn up to 10s pre-LLM (finding #10).
+  const [weatherResult, cityResult] = await Promise.allSettled([
+    fetchWeather7d().then(daily => daily && daily[0] ? formatWeatherLine(daily[0]) : '').catch(() => ''),
+    fetchCity().catch(() => ''),
+  ]);
+  const weather = weatherResult.status === 'fulfilled' ? weatherResult.value : '';
+  const city = cityResult.status === 'fulfilled' ? cityResult.value : '';
   return {
     weather,
     city,

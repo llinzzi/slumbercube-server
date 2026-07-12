@@ -24,6 +24,14 @@ function ensureDir() {
  * added if not present). Uses a single fs.appendFileSync — atomic on
  * most filesystems for sub-page writes.
  */
+// Surface audit-write failures + read-parse failures at WARN so
+// operators notice dedup-context degradation (finding #7). Silent
+// failure here is worse than a loud crash because the LLM silently
+// dedups against stale context.
+function warn(msg) {
+  console.warn(`[scene-audit ${new Date().toISOString()}] ${msg}`);
+}
+
 function append(scene, record) {
   ensureDir();
   const fp = path.join(AUDIT_DIR, `${scene}.jsonl`);
@@ -31,7 +39,12 @@ function append(scene, record) {
     { ts: new Date().toISOString() },
     record
   );
-  fs.appendFileSync(fp, JSON.stringify(full) + '\n', 'utf8');
+  try {
+    fs.appendFileSync(fp, JSON.stringify(full) + '\n', 'utf8');
+  } catch (e) {
+    warn(`append failed for ${scene}: ${e.message.slice(0, 200)}`);
+    throw e;  // surface to caller (which already catches per-entry)
+  }
   return full;
 }
 
@@ -39,11 +52,27 @@ function append(scene, record) {
 function readAll(scene) {
   const fp = path.join(AUDIT_DIR, `${scene}.jsonl`);
   if (!fs.existsSync(fp)) return [];
+  let raw;
+  try {
+    raw = fs.readFileSync(fp, 'utf8');
+  } catch (e) {
+    warn(`readAll: file read failed for ${scene}: ${e.message.slice(0, 200)}`);
+    return [];
+  }
   const out = [];
-  for (const line of fs.readFileSync(fp, 'utf8').split('\n')) {
+  let skipped = 0;
+  for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
     try { out.push(JSON.parse(line)); }
-    catch { /* skip malformed lines */ }
+    catch {
+      // Malformed line (truncated write, disk corruption, etc.).
+      // Skipping silently used to mean dedup-context shrank without
+      // warning; now we count and log.
+      skipped++;
+    }
+  }
+  if (skipped > 0) {
+    warn(`readAll: skipped ${skipped} malformed line(s) in ${scene}.jsonl — dedup context may be stale`);
   }
   return out;
 }
