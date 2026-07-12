@@ -58,7 +58,13 @@ function log(...args) {
 //   opts.timeoutMs    - request timeout (default 60000)
 //   opts.max_tokens    - max output tokens (default 1024 for keyword/playlist, callers can override)
 //   opts.temperature   - default 0.7 (slightly creative for keyword generation)
-// Returns: the assistant text (string), or null on failure / missing key.
+// Returns: the assistant text (string), or null when no API key is configured
+// (a startup-misconfig condition, not a per-call error).
+// Throws: on any runtime error (network, timeout, non-2xx, malformed response).
+// Callers that previously relied on null-as-error should wrap with try/catch.
+// The distinction lets retry loops know when to retry (parse failures) vs.
+// bail out (API down — fallback to persona fallback_intros instead of
+// burning the retry budget on a hard failure).
 async function anthropicChat(system, user, opts = {}) {
   const key = getAnthropicKey();
   if (!key) {
@@ -71,55 +77,50 @@ async function anthropicChat(system, user, opts = {}) {
   const max_tokens = opts.max_tokens || 1024;
   const temperature = opts.temperature != null ? opts.temperature : 0.7;
 
-  try {
-    const body = JSON.stringify({
-      model,
-      max_tokens,
-      temperature,
-      system,
-      messages: [{ role: 'user', content: user }],
-    });
-    const https = require('https');
-    const url = new URL(base);
-    const result = await new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        timeout: timeoutMs,
-      }, (res) => {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => {
-          try {
-            const raw = Buffer.concat(chunks).toString();
-            const data = JSON.parse(raw);
-            if (data.error) reject(new Error(data.error.message || JSON.stringify(data.error)));
-            else resolve(data);
-          } catch (e) { reject(e); }
-        });
+  const body = JSON.stringify({
+    model,
+    max_tokens,
+    temperature,
+    system,
+    messages: [{ role: 'user', content: user }],
+  });
+  const https = require('https');
+  const url = new URL(base);
+  const result = await new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      timeout: timeoutMs,
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        try {
+          const raw = Buffer.concat(chunks).toString();
+          const data = JSON.parse(raw);
+          if (data.error) reject(new Error(data.error.message || JSON.stringify(data.error)));
+          else resolve(data);
+        } catch (e) { reject(e); }
       });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.write(body);
-      req.end();
     });
-    const text = (result.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
-      .trim();
-    log(`OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
-    return text || null;
-  } catch (e) {
-    log('failed:', e.message.slice(0, 500));
-    return null;
-  }
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.write(body);
+    req.end();
+  });
+  const text = (result.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('\n')
+    .trim();
+  log(`OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
+  return text || null;
 }
 
 module.exports = {

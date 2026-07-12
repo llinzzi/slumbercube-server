@@ -469,6 +469,7 @@ async function generatePersonaIntrosBatch(songs, scene, promptCfg, log) {
   // "接下来请欣赏" template.
   const MAX_RETRIES = 3;
   let lastError = '';
+  let apiError = '';  // set when anthropicChat throws (network/timeout/non-2xx); triggers early break
   let lastRaw = '';
   let lastAttemptPrompt = userPrompt;
 
@@ -481,14 +482,19 @@ async function generatePersonaIntrosBatch(songs, scene, promptCfg, log) {
     try {
       text = await anthropicChat(systemPrompt, currentPrompt, 90000);
     } catch (e) {
-      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] API error: ${e.message.slice(0, 100)}`);
-      lastError = e.message.slice(0, 200);
-      continue;
+      // API-level error (network, timeout, non-2xx). Retry won't fix
+      // these — bail out to persona fallback_intros instead of burning
+      // the full budget on the same hard failure (finding #1).
+      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] API error: ${e.message.slice(0, 200)} — falling back to persona fallback_intros`);
+      apiError = e.message.slice(0, 200);
+      break;
     }
     if (!text) {
-      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] anthropic returned null`);
-      lastError = 'API returned null';
-      continue;
+      // No API key configured (or key disappeared mid-build). Treat
+      // as a startup-misconfig condition — don't retry, fall back.
+      log(`  [attempt ${attempt}/${MAX_RETRIES + 1}] anthropicChat returned null (no key?) — falling back to persona fallback_intros`);
+      apiError = 'API returned null';
+      break;
     }
     lastRaw = text;
     lastAttemptPrompt = currentPrompt;

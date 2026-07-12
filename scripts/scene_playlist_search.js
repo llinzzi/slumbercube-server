@@ -140,7 +140,13 @@ async function generateKeywordsWithLLM({ sceneName, weatherToday, weatherTomorro
     .replace(/\$\{history\}/g, historyStr)
     .replace(/\$\{historyCount\}/g, String(history.length));
   console.log(`[${sceneName}] llm-keywords: requesting...`);
-  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.8 });
+  let text;
+  try {
+    text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.8 });
+  } catch (e) {
+    console.log(`[${sceneName}] llm-keywords: API error: ${e.message.slice(0, 200)}`);
+    return null;
+  }
   if (!text) return null;
   // Try to parse JSON array
   const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
@@ -190,7 +196,13 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
     .replace(/\$\{recentPlaylistIds\}/g, recentIdsStr)
     .replace(/\$\{historyCount\}/g, String(recent.length));
   console.log(`[${sceneName}] llm-select: requesting...`);
-  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.3 });
+  let text;
+  try {
+    text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.3 });
+  } catch (e) {
+    console.log(`[${sceneName}] llm-select: API error: ${e.message.slice(0, 200)}`);
+    return null;
+  }
   if (!text) return null;
   const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
   // Try JSON object form first: {"playlist_id":"123"} or {"playlist_id":"SKIP"}
