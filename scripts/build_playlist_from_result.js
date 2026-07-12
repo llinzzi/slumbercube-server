@@ -329,6 +329,8 @@ function getChinaWeekday() {
 // anthropicChat now delegates to the shared helper (scripts/lib/llm_helper.js)
 process.env.LLM_HELPER_TAG = 'build-llm';
 const llmHelper = require('./lib/llm_helper');
+const personaPrompt = require('./lib/persona_prompt');
+const sceneAudit = require('./lib/scene_audit');
 async function anthropicChat(system, user, opts = {}) {
   return llmHelper.anthropicChat(system, user, {
     timeoutMs: opts.timeoutMs || opts.timeoutMs === 0 ? opts.timeoutMs : 120000,
@@ -339,6 +341,77 @@ async function anthropicChat(system, user, opts = {}) {
 
 function log(...args) { console.log(`[build-from-result ${new Date().toISOString()}]`, ...args); }
 
+// ----------------------------------------------------------------
+// Persona context — gathers weather / city / time / box state / recent
+// intros for the LLM prompt. Each field is optional and degrades
+// gracefully (empty string / empty array) when the underlying source is
+// missing or fails. This is what R3 + KTD5 assemble into the user
+// prompt block. Lives in build_playlist_from_result.js because
+// persona_prompt.js is a pure assembler; the I/O orchestration lives
+// here alongside the existing fetchWeather7d() pattern.
+// ----------------------------------------------------------------
+
+const DEVICE_READINGS_PATH = path.join(PROJECT_ROOT, 'config', 'device_readings.json');
+
+function fetchCity() {
+  return new Promise(resolve => {
+    const req = require('http').get(`${SERVER_BASE}/api/weather/location`, { timeout: 5000 }, res => {
+      if (res.statusCode !== 200) { res.resume(); return resolve(''); }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          resolve((j && (j.locationName || j.name)) || '');
+        } catch { resolve(''); }
+      });
+    });
+    req.on('error', () => resolve(''));
+    req.on('timeout', () => { req.destroy(); resolve(''); });
+  });
+}
+
+function readBoxState() {
+  try {
+    if (!fs.existsSync(DEVICE_READINGS_PATH)) return '';
+    const arr = JSON.parse(fs.readFileSync(DEVICE_READINGS_PATH, 'utf8'));
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    const last = arr[arr.length - 1] || {};
+    const parts = [];
+    if (last.t != null) parts.push(`温度 ${last.t}°C`);
+    if (last.h != null) parts.push(`湿度 ${last.h}%`);
+    return parts.length ? `我房间里现在 ${parts.join('，')}` : '';
+  } catch { return ''; }
+}
+
+function readRecentIntros(scene, n = 5) {
+  try {
+    const records = sceneAudit.readAll(scene);
+    return records
+      .filter(r => r && typeof r.intro === 'string' && r.intro)
+      .slice(-n)
+      .map(r => r.intro);
+  } catch { return []; }
+}
+
+async function loadPersonaContext(scene) {
+  let weather = '', city = '';
+  try {
+    const daily = await fetchWeather7d();
+    if (daily && daily[0]) weather = formatWeatherLine(daily[0]);
+  } catch {}
+  try { city = await fetchCity(); } catch {}
+  return {
+    weather,
+    city,
+    time: { date: getChinaDate(), weekday: getChinaWeekday() },
+    scene,
+    boxState: readBoxState(),
+    recentIntros: readRecentIntros(scene, 5),
+  };
+}
+
 function execAsync(cmd, opts = {}) {
   return new Promise((resolve, reject) => {
     exec(cmd, opts, (err, stdout, stderr) => {
@@ -346,6 +419,164 @@ function execAsync(cmd, opts = {}) {
       else resolve({ stdout, stderr });
     });
   });
+}
+
+// ---------- Persona-driven BATCH intro generation ----------
+// Same shape as generateIntrosBatch (returns introMap + prompt +
+// response + httpRequest) but the prompt is assembled from
+// config/persona_xiaofanghe.json via persona_prompt.buildPrompts().
+// Persona load fails → we fall through to the legacy intro_prompts.json
+// path (preserves the migration window). On success, every parsed
+// intro is also written to data/scene_audit/<scene>.jsonl so the
+// dedup loop (R3 / KTD5 / AE1 / AE4) has per-intro text to read —
+// scene_fetch only writes playlist-level fields; this fills the gap.
+async function generatePersonaIntrosBatch(songs, scene, promptCfg, log) {
+  const personaResult = personaPrompt.loadPersona();
+  if (!personaResult.ok) {
+    log(`  persona unavailable (${personaResult.error}) — falling back to intro_prompts.json`);
+    return generateIntrosBatch(songs, scene, promptCfg, log);
+  }
+  const persona = personaResult.persona;
+
+  // Gather context (weather / city / time / box state / recent intros)
+  // before the LLM call so the prompt is complete in a single shot.
+  const ctx = await loadPersonaContext(scene);
+  ctx.songs = songs;
+
+  const { system: systemPrompt, user: userPrompt } = personaPrompt.buildPrompts(persona, ctx);
+
+  const anthropicHttpRequest = JSON.stringify({
+    url: ANTHROPIC_BASE,
+    headers: {
+      'x-api-key': '<redacted>',
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: {
+      model: ANTHROPIC_MODEL,
+      max_tokens: 4000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    },
+  }, null, 2);
+
+  try {
+    const text = await anthropicChat(systemPrompt, userPrompt, 90000);
+    if (!text) {
+      log('  anthropic returned null');
+      return { introMap: new Map(), prompt: userPrompt, response: '', httpRequest: anthropicHttpRequest, persona };
+    }
+    const raw = text;
+    let clean = raw
+      .replace(/<\s*think[\s\S]*?<\s*\/\s*think\s*>/g, '')
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '');
+    clean = clean.trim();
+
+    // Persona prompt asks for paragraph format (one paragraph per song,
+    // separated by blank lines). JSON-array output is accepted too
+    // because the model occasionally drifts back to it.
+    let parsed = null;
+    try { parsed = JSON.parse(clean); } catch {}
+
+    const out = new Map();
+    const introsForAudit = [];
+
+    if (Array.isArray(parsed)) {
+      // JSON-array path
+      for (let i = 0; i < songs.length && i < parsed.length; i++) {
+        const item = parsed[i];
+        let intro = '';
+        if (typeof item === 'string') intro = item.trim();
+        else if (item && typeof item === 'object') {
+          intro = (item.intro || item.announcement || item.text || '').toString().trim();
+        }
+        intro = intro.replace(/^["「']|["」']$/g, '');
+        if (intro.length >= 4 && intro.length <= 400) {
+          out.set(songs[i].name, intro);
+          introsForAudit.push({ song_name: songs[i].name, intro });
+        } else {
+          log(`  intro rejected for "${songs[i].name}" (len=${intro.length}): ${intro.slice(0, 30)}`);
+        }
+      }
+    } else {
+      // Paragraph path (the persona prompt's preferred shape)
+      const paragraphs = clean.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+      const targetCount = songs.length;
+
+      // Strategy 1: exact count
+      let useParas = paragraphs.length === targetCount ? paragraphs : null;
+
+      // Strategy 2: count >= target — attribute by song name
+      if (!useParas && paragraphs.length >= targetCount) {
+        const matched = new Array(targetCount).fill(null);
+        const used = new Set();
+        for (let i = 0; i < songs.length; i++) {
+          const song = songs[i];
+          const escName = song.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const patWrap = new RegExp('《\\s*' + escName + '\\s*》');
+          let found = -1;
+          for (let j = 0; j < paragraphs.length; j++) {
+            if (used.has(j)) continue;
+            if (patWrap.test(paragraphs[j])) { found = j; break; }
+          }
+          if (found < 0) {
+            const patBare = new RegExp(escName);
+            for (let j = 0; j < paragraphs.length; j++) {
+              if (used.has(j)) continue;
+              if (patBare.test(paragraphs[j])) { found = j; break; }
+            }
+          }
+          if (found >= 0) { matched[i] = paragraphs[found]; used.add(found); }
+        }
+        if (matched.every(p => p !== null)) useParas = matched;
+      }
+
+      if (!useParas) {
+        log(`  paragraph attribution failed: ${paragraphs.length} paragraphs vs ${songs.length} songs`);
+        return { introMap: new Map(), prompt: userPrompt, response: raw, httpRequest: anthropicHttpRequest, persona };
+      }
+
+      for (let i = 0; i < songs.length; i++) {
+        let cleaned = useParas[i];
+        cleaned = cleaned
+          .replace(/^\s*【[^】]+】\s*/, '')
+          .replace(/^\s*第\s*\d+\s*首[：:\s]*/, '')
+          .replace(/^\s*\d+[\.、。)【]\s*/, '')
+          .trim();
+        const splitMatch = cleaned.match(/^(《[^》]+》)\s*\n\s*(.+)$/s);
+        if (splitMatch) cleaned = splitMatch[1] + splitMatch[2];
+        if (cleaned.length >= 4 && cleaned.length <= 400) {
+          out.set(songs[i].name, cleaned);
+          introsForAudit.push({ song_name: songs[i].name, intro: cleaned });
+        } else {
+          log(`  intro rejected for "${songs[i].name}" (len=${cleaned.length}): ${cleaned.slice(0, 30)}`);
+        }
+      }
+    }
+
+    // Per-intro write to data/scene_audit/<scene>.jsonl. Resolves the
+    // P0 audit-log gap surfaced by doc review — scene_fetch writes
+    // playlist-level metadata only; without these per-intro lines the
+    // dedup feed has nothing to read.
+    for (const entry of introsForAudit) {
+      try {
+        sceneAudit.append(scene, {
+          scene,
+          song_name: entry.song_name,
+          intro: entry.intro,
+          source: 'persona',
+        });
+      } catch (e) {
+        log(`  audit write failed for "${entry.song_name}": ${e.message.slice(0, 100)}`);
+      }
+    }
+
+    return { introMap: out, prompt: userPrompt, response: raw, httpRequest: anthropicHttpRequest, persona };
+  } catch (e) {
+    log(`  persona batch anthropic chat failed: ${e.message.slice(0, 200)}`);
+    return { introMap: new Map(), prompt: userPrompt, response: '', httpRequest: anthropicHttpRequest, persona };
+  }
 }
 
 // ---------- mmx text chat: BATCH intro generation ----------
@@ -896,11 +1127,19 @@ async function main() {
 
   // Batch-call the LLM ONCE with all song names, get back intros for
   // every song in one shot. ~10-15s instead of 20 × 7s = 140s.
+  // generatePersonaIntrosBatch prefers the 小方盒 persona data; on
+  // load failure it falls through to the legacy intro_prompts.json
+  // path. Either way, persona is undefined when the legacy ran.
   log(`[llm-batch] asking LLM for ${songs.length} intros in one call…`);
   const llmStart = Date.now();
-  const { introMap, prompt, response, httpRequest } = await generateIntrosBatch(songs, scene, promptCfg, log);
+  const { introMap, prompt, response, httpRequest, persona } = await generatePersonaIntrosBatch(songs, scene, promptCfg, log);
   const llmMs = Date.now() - llmStart;
-  log(`[llm-batch] got ${introMap.size}/${songs.length} intros from LLM (${llmMs}ms)`);
+  log(`[llm-batch] got ${introMap.size}/${songs.length} intros from LLM (${llmMs}ms, ${persona ? 'persona' : 'legacy'} prompt)`);
+  // The actual system prompt sent to the LLM — persona-driven when
+  // persona loaded, otherwise the legacy intro_prompts.json template.
+  const actualSystemPrompt = persona
+    ? personaPrompt.assembleSystemPrompt(persona)
+    : promptCfg.system_template.replace(/\$\{sceneHint\}/g, sceneHint);
   // Persist full prompt + raw response + parsed intros to queue_state
   // so the admin UI can show them after the run.
   reportBuildProgress({
@@ -912,7 +1151,7 @@ async function main() {
     current_song: '',
     sub_phase: 'llm_batch',
     llm: {
-      system: promptCfg.system_template.replace(/\$\{sceneHint\}/g, sceneHint),
+      system: actualSystemPrompt,
       prompt,
       response,
       http_request: httpRequest,
@@ -926,10 +1165,13 @@ async function main() {
   for (let i = 0; i < songs.length; i++) {
     const song = songs[i];
     const idx = i + 1;
-    // Look up intro from the batch map; fall back to a fixed line
-    // when the LLM skipped this song.
-    const introText = introMap.get(song.name)
-      || promptCfg.fallback_intro.replace(/\$\{name\}/g, song.name);
+    // Look up intro from the batch map; fall back to persona's
+    // fallback_intros (random pick) when persona loaded, otherwise
+    // the legacy intro_prompts.json fallback_intro template.
+    const fallbackText = persona
+      ? personaPrompt.pickFallbackIntro(persona, song.name)
+      : promptCfg.fallback_intro.replace(/\$\{name\}/g, song.name);
+    const introText = introMap.get(song.name) || fallbackText;
 
     // Top-level per-song try/catch so a single TTS / transcode / stitch
     // failure (or missing mp3 on disk) doesn't kill the entire build.
