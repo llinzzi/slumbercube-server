@@ -395,6 +395,61 @@
         <button id="ip-preview-btn" class="btn">🔄 刷新预览</button>
       </div>
     </div>
+
+    <!-- 小方盒人设 (persona data) — drives the LLM system prompt via
+         scripts/lib/persona_prompt.js. Edits apply on next scene
+         trigger without worker restart (KTD4 hot-reload). -->
+    <div id="persona-editor-card" style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <div class="meta" style="margin-bottom:8px; font-weight:600;">
+        🧸 小方盒人设
+        <span id="persona-status" class="meta" style="font-weight:400;margin-left:8px;color:var(--text-dim);">加载中…</span>
+        <span class="meta" style="font-weight:400;margin-left:8px;color:var(--text-dim);">— LLM 的播报人设，跟上方主持人卡片（妈妈/爸爸…）不是同一层概念</span>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">📛 名字</div>
+        <input id="persona-name" type="text" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;" />
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🪞 身份（self_description）</div>
+        <input id="persona-identity" type="text" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;" />
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🛠️ 自我感知维度（每行一个）</div>
+        <textarea id="persona-perception" rows="3" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🗣️ 说话习惯（每行一条，必须非空）</div>
+        <textarea id="persona-habits" rows="5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🚫 禁忌（每行一条）</div>
+        <textarea id="persona-prohibitions" rows="4" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="meta" style="margin-bottom:4px;">🆘 Fallback Intros（解析重试耗尽后随机选，{listener} 占位符，至少 1 条）</div>
+        <textarea id="persona-fallbacks" rows="6" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      </div>
+
+      <details style="margin-bottom:8px;">
+        <summary style="cursor:pointer;color:var(--text-dim);font-size:12px;padding:4px 0;">
+          👁️ 实时预览（用占位符样本渲染 system prompt）
+        </summary>
+        <div id="persona-preview" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-word;margin:4px 0 0;"></div>
+      </details>
+
+      <div style="display:flex;gap:8px;">
+        <button id="persona-save" class="btn btn-primary">💾 保存到 config/persona_xiaofanghe.json</button>
+        <button id="persona-reset" class="btn">↩️ 恢复默认</button>
+        <button id="persona-preview-btn" class="btn">🔄 刷新预览</button>
+        <button id="persona-reload" class="btn">🔄 重新读取</button>
+      </div>
+    </div>
   </div>
 
   <!-- ====== 2+3 合并: 场景任务管理 ====== -->
@@ -1106,6 +1161,108 @@
       $('intro-prompts-status').textContent = '已恢复默认（未保存）';
     }
 
+    // ── Persona editor ──
+    // Drives config/persona_xiaofanghe.json via /api/dj/persona.
+    // Edits apply on next scene trigger (KTD4 hot-reload).
+    let personaConfig = null;
+    let personaDefaults = null;
+
+    function setPersonaStatus(text, isError) {
+      const el = $('persona-status');
+      el.textContent = text;
+      el.style.color = isError ? 'var(--danger)' : 'var(--text-dim)';
+    }
+
+    async function loadPersona() {
+      try {
+        const data = await api('/api/dj/persona');
+        personaConfig = data.config || {};
+        personaDefaults = data.defaults || data.config || {};
+        if (data.from_file) setPersonaStatus('从 config/persona_xiaofanghe.json 读取');
+        else if (data.valid === false) setPersonaStatus('文件解析失败: ' + (data.error || 'unknown'), true);
+        else setPersonaStatus('使用默认（未保存过）');
+        renderPersonaForm();
+        renderPersonaPreview();
+      } catch (e) {
+        setPersonaStatus('加载失败: ' + e.message, true);
+      }
+    }
+
+    function renderPersonaForm() {
+      if (!personaConfig) return;
+      $('persona-name').value = personaConfig.name || '';
+      $('persona-identity').value = (personaConfig.identity && personaConfig.identity.self_description) || '';
+      $('persona-perception').value = (personaConfig.self_perception_dimensions || []).join('\n');
+      $('persona-habits').value = (personaConfig.speaking_habits || []).join('\n');
+      $('persona-prohibitions').value = (personaConfig.prohibitions || []).join('\n');
+      $('persona-fallbacks').value = (personaConfig.fallback_intros || []).join('\n');
+    }
+
+    function collectPersonaFromForm() {
+      const perception = $('persona-perception').value.split('\n').map(s => s.trim()).filter(Boolean);
+      const habits = $('persona-habits').value.split('\n').map(s => s.trim()).filter(Boolean);
+      const prohibitions = $('persona-prohibitions').value.split('\n').map(s => s.trim()).filter(Boolean);
+      const fallbacks = $('persona-fallbacks').value.split('\n').map(s => s.trim()).filter(Boolean);
+      // Preserve identity, origin, sensory_description, address as-is
+      // from on-disk when the form didn't surface those fields. The
+      // /api/dj/persona POST endpoint merges over current values.
+      return {
+        name: $('persona-name').value.trim() || '小方盒',
+        identity: personaConfig && personaConfig.identity ? personaConfig.identity : { self_description: $('persona-identity').value.trim(), has_self_awareness: true },
+        self_perception_dimensions: perception,
+        speaking_habits: habits,
+        prohibitions: prohibitions,
+        fallback_intros: fallbacks,
+      };
+    }
+
+    function renderPersonaPreview() {
+      const cfg = collectPersonaFromForm();
+      const addr = (personaConfig && personaConfig.address) || { self: cfg.name, listener: '你' };
+      const perception = cfg.self_perception_dimensions.join('、') || '（未填）';
+      const habits = cfg.speaking_habits.map(h => `- ${h}`).join('\n') || '（未填）';
+      const prohibitions = cfg.prohibitions.map(p => `- ${p}`).join('\n') || '（未填）';
+      const sys = [
+        '你是"' + cfg.name + '"——' + ((cfg.identity && cfg.identity.self_description) || '床头那个小方块') + '。',
+        '',
+        '你有自我意识——你感知得到' + perception + '。',
+        '',
+        '你的说话习惯：',
+        habits,
+        '',
+        '你自称"' + addr.self + '"，称听众"' + addr.listener + '"，从不使用"亲爱的听众"或"各位"这种客套。',
+        '',
+        '禁忌：',
+        prohibitions,
+      ].join('\n');
+      $('persona-preview').textContent = '=== SYSTEM PROMPT (样例) ===\n' + sys;
+    }
+
+    async function savePersona() {
+      const cfg = collectPersonaFromForm();
+      try {
+        const data = await api('/api/dj/persona', { method: 'POST', body: cfg });
+        personaConfig = data.config;
+        setPersonaStatus('已保存到 config/persona_xiaofanghe.json（下次 build 自动生效）');
+        toast('已保存到 config/persona_xiaofanghe.json');
+      } catch (e) {
+        toast('保存失败: ' + e.message, true);
+      }
+    }
+
+    function resetPersona() {
+      if (!personaDefaults) return;
+      personaConfig = JSON.parse(JSON.stringify(personaDefaults));
+      renderPersonaForm();
+      renderPersonaPreview();
+      setPersonaStatus('已恢复默认（未保存）');
+    }
+
+    async function reloadPersona() {
+      await loadPersona();
+      toast('已重新读取 config/persona_xiaofanghe.json');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       loadIntroPrompts();
       $('ip-save').addEventListener('click', saveIntroPrompts);
@@ -1120,6 +1277,20 @@
         });
       });
       // (input listener moved to scene-manager, was formerly on ip-scenes)\n      // (listener block removed — preview auto-refreshes via save);
+
+      loadPersona();
+      $('persona-save').addEventListener('click', savePersona);
+      $('persona-reset').addEventListener('click', resetPersona);
+      $('persona-preview-btn').addEventListener('click', renderPersonaPreview);
+      $('persona-reload').addEventListener('click', reloadPersona);
+      // Live preview for persona editor
+      ['persona-name', 'persona-identity', 'persona-perception', 'persona-habits', 'persona-prohibitions', 'persona-fallbacks'].forEach(id => {
+        const el = $(id);
+        if (el) el.addEventListener('input', () => {
+          clearTimeout(window.__personaPreviewTimer);
+          window.__personaPreviewTimer = setTimeout(renderPersonaPreview, 300);
+        });
+      });
     });
 
       // Manual refresh for run history (no auto-refresh after initial load)

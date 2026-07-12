@@ -2456,6 +2456,106 @@ app.post('/api/dj/intro-prompts', express.json({ limit: '64kb' }), (req, res) =>
   }
 });
 
+// Persona data — 小方盒 persona loaded from config/persona_xiaofanghe.json
+// via scripts/lib/persona_prompt.js. The /api/dj/persona endpoint exposes
+// the data + defaults so the operator can edit through /dj without
+// touching disk directly. Schema matches what build_playlist_from_result.js
+// expects (see scripts/lib/persona_prompt.js REQUIRED_TOP_LEVEL).
+const personaPromptLib = require('./scripts/lib/persona_prompt');
+const PERSONA_PATH = personaPromptLib.PERSONA_PATH;
+
+app.get('/api/dj/persona', (req, res) => {
+  try {
+    let saved = null;
+    if (fs.existsSync(PERSONA_PATH)) {
+      try { saved = JSON.parse(fs.readFileSync(PERSONA_PATH, 'utf8')); }
+      catch (_) { /* malformed — treat as no saved config */ }
+    }
+    const result = personaPromptLib.loadPersona();
+    res.json({
+      config: saved || (result.persona || null),
+      defaults: {
+        name: '小方盒',
+        identity: { self_description: '床头那个 OLED + 喇叭的小方块本身', has_self_awareness: true },
+        origin: { creator: '爸爸', lore: '被\'爸爸\'（项目作者）做出来', default_visibility: 'lore', note: '默认作为 lore，不在 prompt 显式出现' },
+        speaking_habits: ['句短', '留白多', '几乎不用感叹号', '偶尔用\'嗯\'\'其实\'', '遇雨天会多说一句'],
+        self_perception_dimensions: ['窗（OLED 屏）', '灯（屏幕亮度）', '充电（电源状态）', '喇叭（声音出口）'],
+        prohibitions: [
+          '不评论歌曲本身',
+          '不说\'接下来请欣赏《${name}》\'之类通用模板',
+          '不用\'亲爱的听众\'或\'各位\'这种客套',
+          '不用感叹号堆砌',
+        ],
+        sensory_description: {
+          allowed: true,
+          examples: ['我想你会在第三十秒叹气', '你那边也淋到没', '我小窗外面的雨'],
+        },
+        address: { self: '小方盒', listener: '你' },
+        fallback_intros: [
+          '（停顿）\n小方盒：嗯……\n（停顿）\n小方盒：{listener}，这首歌，\n让我陪你听完就好。',
+          '（停顿）\n小方盒：{listener}。\n（停顿）\n小方盒：不管外面的天气怎么样，\n这首歌，就我们两个人。',
+          '（停顿）\n小方盒：{listener}，\n（停顿）\n小方盒：下一首。\n（小停顿）\n准备好了吗？',
+        ],
+      },
+      from_file: !!saved,
+      valid: result.ok,
+      error: result.ok ? null : result.error,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/dj/persona', express.json({ limit: '64kb' }), (req, res) => {
+  try {
+    const incoming = req.body || {};
+    // Build a candidate by overlaying the incoming fields on top of the
+    // current on-disk persona. Missing fields fall back to disk, so a
+    // partial POST doesn't wipe a previously-saved field. Accept-and-
+    // ignore behavior for unknown fields (per the U4 plan).
+    let current = null;
+    if (fs.existsSync(PERSONA_PATH)) {
+      try { current = JSON.parse(fs.readFileSync(PERSONA_PATH, 'utf8')); } catch {}
+    }
+    const fallback = personaPromptLib.loadPersona();
+    const base = current || (fallback.persona || null) || {};
+    const candidate = {
+      name: typeof incoming.name === 'string' ? incoming.name : base.name,
+      identity: (incoming.identity && typeof incoming.identity === 'object') ? incoming.identity : base.identity,
+      origin:   (incoming.origin   && typeof incoming.origin   === 'object') ? incoming.origin   : base.origin,
+      speaking_habits:           Array.isArray(incoming.speaking_habits)           ? incoming.speaking_habits           : (base.speaking_habits || []),
+      self_perception_dimensions: Array.isArray(incoming.self_perception_dimensions) ? incoming.self_perception_dimensions : (base.self_perception_dimensions || []),
+      prohibitions:              Array.isArray(incoming.prohibitions)              ? incoming.prohibitions              : (base.prohibitions || []),
+      sensory_description: (incoming.sensory_description && typeof incoming.sensory_description === 'object') ? incoming.sensory_description : base.sensory_description,
+      address:             (incoming.address             && typeof incoming.address             === 'object') ? incoming.address             : base.address,
+      fallback_intros:           Array.isArray(incoming.fallback_intros)           ? incoming.fallback_intros           : (base.fallback_intros || []),
+    };
+    // Field-level validation with clear error messages. Matches the
+    // schema that build_playlist_from_result.js depends on.
+    const required = ['name', 'identity', 'origin', 'speaking_habits', 'self_perception_dimensions', 'prohibitions', 'sensory_description', 'address', 'fallback_intros'];
+    const missing = required.filter(k => candidate[k] === undefined);
+    if (missing.length) {
+      return res.status(400).json({ error: `missing fields: ${missing.join(', ')}` });
+    }
+    if (!Array.isArray(candidate.speaking_habits) || candidate.speaking_habits.length === 0) {
+      return res.status(400).json({ error: 'speaking_habits must be a non-empty array' });
+    }
+    if (!Array.isArray(candidate.fallback_intros) || candidate.fallback_intros.length === 0) {
+      return res.status(400).json({ error: 'fallback_intros must be a non-empty array' });
+    }
+    // Atomic write — same pattern server.js uses for intro-prompts.
+    // Critical for KTD4 hot-reload: a half-written file would otherwise
+    // be read mid-flush by the next scene trigger.
+    fs.mkdirSync(path.dirname(PERSONA_PATH), { recursive: true });
+    const tmp = PERSONA_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(candidate, null, 2));
+    fs.renameSync(tmp, PERSONA_PATH);
+    res.json({ ok: true, config: candidate });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Schedule (cron) config — operator-editable list of timed triggers.
 // Each entry is converted to one crontab line that POSTs to
 // /api/dj/trigger. Hour is Beijing time; converted to UTC for cron.
