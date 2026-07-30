@@ -31,14 +31,12 @@ PAGES = {
         'expected_dom': [
             ('h1', '192'),
             ('#volumeSlider', '音量滑块'),
-            ('#ttsToggle', 'TTS 开关'),
             ('#playBtn', '收听按钮'),
         ],
         'user_actions': [
             # (label, selector, action, expected_dom_after)
             ('调整音量到 30', '#volumeSlider', 'fill_value:30', '#volumeDisplay == "30"'),
             ('调整音量到 80', '#volumeSlider', 'fill_value:80', '#volumeDisplay == "80"'),
-            ('点击 TTS 开关', '#ttsToggle', 'click', None),
         ],
     },
     '/library': {

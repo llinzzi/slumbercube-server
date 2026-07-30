@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/css/site.css">
   <link rel="stylesheet" href="/css/site-mobile.css">
   <style>
-    /* Index 独有（player-bar / source-banner / playlist-card / preamble / file-table / weather / tts / volume / footer / device-select） */
+    /* Index 独有（player-bar / source-banner / playlist-card / preamble / file-table / weather / volume / footer / device-select） */
 
     /* Player bar */
     .player-bar {
@@ -127,36 +127,6 @@
       -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
       background:var(--accent); cursor:pointer; border:none;
     }
-
-    /* TTS toggle switch */
-    .tts-toggle {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--text-dim);
-      cursor: pointer;
-      user-select: none;
-    }
-    .tts-switch {
-      width: 32px; height: 18px;
-      background: var(--surface2);
-      border-radius: 9px;
-      position: relative;
-      transition: background 0.2s;
-      border: 1px solid var(--border);
-    }
-    .tts-switch::after {
-      content: '';
-      position: absolute;
-      width: 14px; height: 14px;
-      background: var(--text-dim);
-      border-radius: 50%;
-      top: 1px; left: 1px;
-      transition: all 0.2s;
-    }
-    .tts-toggle.active .tts-switch { background: var(--accent); border-color: var(--accent); }
-    .tts-toggle.active .tts-switch::after { background: #000; left: 15px; }
 
     /* Section title + file list */
     .section-title { font-size:12px; font-weight:600; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; }
@@ -278,10 +248,6 @@
     <span style="font-size:12px;color:var(--text-dim);">🔊</span>
     <input type="range" id="volumeSlider" min="1" max="100" value="80">
     <span id="volumeDisplay" style="font-size:11px;color:var(--text-dim);min-width:24px;">80</span>
-  </div>
-  <div class="tts-toggle" id="ttsToggle" onclick="toggleTts()">
-    <span class="tts-switch"></span>
-    <span id="ttsLabel">播报</span>
   </div>
 </div>
 
@@ -475,35 +441,6 @@ document.getElementById('volumeSlider').addEventListener('input', async (e) => {
   document.getElementById('volumeDisplay').textContent = v;
   await fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: v }) });
 });
-
-// TTS Intro toggle
-async function toggleTts() {
-  try {
-    const el = document.getElementById('ttsToggle');
-    const nowOn = el.classList.contains('active');
-    const r = await fetch('/api/tts-intro', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: !nowOn })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      el.classList.toggle('active', d.enabled);
-      document.getElementById('ttsLabel').textContent = d.enabled ? '播报中' : '播报';
-    }
-  } catch(e) {}
-}
-// Load initial TTS state
-(async function() {
-  try {
-    const r = await fetch('/api/tts-intro');
-    const d = await r.json();
-    if (d.enabled) {
-      document.getElementById('ttsToggle').classList.add('active');
-      document.getElementById('ttsLabel').textContent = '播报中';
-    }
-  } catch(e) {}
-})();
 
 // Server clock
 async function syncClock() {

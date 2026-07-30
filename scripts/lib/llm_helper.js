@@ -38,7 +38,11 @@ function getSettings() {
 
 function getAnthropicKey() {
   if (process.env.ANTHROPIC_KEY) return process.env.ANTHROPIC_KEY;
-  return getSettings().apiKey || null;
+  const s = getSettings();
+  if (s.llmProvider === 'deepseek') {
+    return s.deepseekApiKey || process.env.DEEPSEEK_API_KEY || null;
+  }
+  return s.apiKey || null;
 }
 
 function getAnthropicBase() {
@@ -65,15 +69,30 @@ async function anthropicChat(system, user, opts = {}) {
     log('no API key found in config/settings.json or ~/.mmx/config.json');
     return null;
   }
-  const base = getAnthropicBase();
   const model = getAnthropicModel();
   const timeoutMs = opts.timeoutMs || 60000;
   const max_tokens = opts.max_tokens || 1024;
   const temperature = opts.temperature != null ? opts.temperature : 0.7;
+  const settings = getSettings();
+  const isDeepSeek = settings.llmProvider === 'deepseek';
 
   try {
-    const body = JSON.stringify({
-      model,
+    const base = isDeepSeek
+      ? (settings.deepseekBase || 'https://api.deepseek.com/chat/completions')
+      : getAnthropicBase();
+    const selectedModel = isDeepSeek
+      ? (settings.deepseekModel || 'deepseek-v4-flash')
+      : model;
+    const body = JSON.stringify(isDeepSeek ? {
+      model: selectedModel,
+      max_tokens,
+      temperature,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    } : {
+      model: selectedModel,
       max_tokens,
       temperature,
       system,
@@ -86,7 +105,10 @@ async function anthropicChat(system, user, opts = {}) {
         hostname: url.hostname,
         path: url.pathname,
         method: 'POST',
-        headers: {
+        headers: isDeepSeek ? {
+          'authorization': `Bearer ${key}`,
+          'content-type': 'application/json',
+        } : {
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json',
@@ -109,10 +131,12 @@ async function anthropicChat(system, user, opts = {}) {
       req.write(body);
       req.end();
     });
-    const text = (result.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
+    const text = (isDeepSeek
+      ? (result.choices?.[0]?.message?.content || '')
+      : (result.content || [])
+        .filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join('\n'))
       .trim();
     log(`OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
     return text || null;

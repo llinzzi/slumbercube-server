@@ -127,33 +127,64 @@
       </div>
     </div>
 
-    <!-- ============== minimax ============== -->
+    <!-- ============== LLM + TTS ============== -->
     <div class="card">
-      <h2>🤖 minimax (LLM + TTS)</h2>
+      <h2>🤖 模型与语音</h2>
       <div class="meta">
-        一个 token 同时用于：1) LLM 生成播报词（Anthropic 兼容接口），2) TTS 语音合成。
-        私密字段不回显全值。
+        LLM 可选 MiniMax 或 DeepSeek；TTS 使用 MiniMax，可独立关闭。私密字段不回显全值。
       </div>
 
       <div class="field">
-        <label for="mmx-key">API Token</label>
+        <label for="llm-provider">LLM 提供商</label>
+        <select class="input" id="llm-provider">
+          <option value="minimax">MiniMax</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+        <div class="help">选歌、关键词和播报文案使用的模型服务。</div>
+      </div>
+
+      <div class="field deepseek-field">
+        <label for="deepseek-key">DeepSeek API Key</label>
+        <input class="input mono" id="deepseek-key" type="password" placeholder="未设置" />
+        <button class="btn" id="deepseek-key-toggle">👁</button>
+        <div class="help"><span id="deepseek-key-status" class="badge warn">未设置</span></div>
+      </div>
+
+      <div class="field deepseek-field">
+        <label for="deepseek-base">DeepSeek Base URL</label>
+        <input class="input mono" id="deepseek-base"
+               placeholder="https://api.deepseek.com/chat/completions" />
+        <div class="help">DeepSeek 的 OpenAI 兼容接口。</div>
+      </div>
+
+      <div class="field deepseek-field">
+        <label for="deepseek-model">DeepSeek Model</label>
+        <select class="input mono" id="deepseek-model">
+          <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+          <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+        </select>
+        <div class="help">日常生成建议使用速度更快、成本更低的 deepseek-v4-flash。</div>
+      </div>
+
+      <div class="field mmx-required-field">
+        <label for="mmx-key">MiniMax API Token</label>
         <input class="input mono" id="mmx-key" type="password"
                placeholder="未设置" />
         <button class="btn" id="mmx-key-toggle">👁</button>
         <div class="help">
           <span id="mmx-key-status" class="badge warn">未设置</span>
-          区域：<code>minimaxi.com</code>（CN 区域 key，<code>sk-cp-</code> 开头）。改完下一次 scene-fetch 时生效。
+          MiniMax LLM 或 TTS 开启时需要。区域：<code>minimaxi.com</code>（CN 区域 key，<code>sk-cp-</code> 开头）。
         </div>
       </div>
 
-      <div class="field">
+      <div class="field minimax-llm-field">
         <label for="mmx-anthropic-base">Anthropic Base URL</label>
         <input class="input mono" id="mmx-anthropic-base"
                placeholder="https://api.minimaxi.com/anthropic/v1/messages" />
         <div class="help">LLM 调用的 endpoint。</div>
       </div>
 
-      <div class="field">
+      <div class="field minimax-llm-field">
         <label for="mmx-anthropic-model">Anthropic Model</label>
         <input class="input mono" id="mmx-anthropic-model"
                placeholder="MiniMax-M3" />
@@ -161,20 +192,26 @@
       </div>
 
       <div class="field">
+        <label for="tts-enabled">TTS 讲解语音</label>
+        <input id="tts-enabled" type="checkbox" />
+        <div class="help">关闭后不要求填写 TTS 配置，也不会生成播报文案、语音或拼接音频。</div>
+      </div>
+
+      <div class="field tts-field">
         <label for="mmx-tts-base">TTS Base URL</label>
         <input class="input mono" id="mmx-tts-base"
                placeholder="https://api.minimaxi.com/v1/t2a_v2" />
         <div class="help">TTS HTTP endpoint。</div>
       </div>
 
-      <div class="field">
+      <div class="field tts-field">
         <label for="mmx-tts-model">TTS Model</label>
         <input class="input mono" id="mmx-tts-model"
                placeholder="speech-02-turbo" />
         <div class="help">TTS 模型。</div>
       </div>
 
-      <div class="field">
+      <div class="field tts-field">
         <label for="mmx-tts-voice">TTS Voice</label>
         <input class="input mono" id="mmx-tts-voice"
                placeholder="male-qn-qingse" />
@@ -182,7 +219,7 @@
       </div>
 
       <div class="section-actions">
-        <button class="btn btn-primary" id="mmx-save">💾 保存</button>
+        <button class="btn btn-primary" id="mmx-save">💾 保存模型与语音</button>
         <button class="btn btn-danger" id="mmx-key-clear">🗑️ 清除 Token</button>
       </div>
     </div>
@@ -264,6 +301,26 @@
     }
     wireToggle('weather-key', 'weather-key-toggle');
     wireToggle('mmx-key', 'mmx-key-toggle');
+    wireToggle('deepseek-key', 'deepseek-key-toggle');
+
+    function renderModelFields() {
+      const provider = $('llm-provider').value;
+      document.querySelectorAll('.deepseek-field').forEach(el => {
+        el.style.display = provider === 'deepseek' ? '' : 'none';
+      });
+      document.querySelectorAll('.minimax-llm-field').forEach(el => {
+        el.style.display = provider === 'minimax' ? '' : 'none';
+      });
+      const ttsEnabled = $('tts-enabled').checked;
+      document.querySelectorAll('.mmx-required-field').forEach(el => {
+        el.style.display = provider === 'minimax' || ttsEnabled ? '' : 'none';
+      });
+      document.querySelectorAll('.tts-field').forEach(el => {
+        el.style.display = ttsEnabled ? '' : 'none';
+      });
+    }
+    $('llm-provider').addEventListener('change', renderModelFields);
+    $('tts-enabled').addEventListener('change', renderModelFields);
 
     // ----- Load current settings -----
     let _settings = null;
@@ -278,12 +335,18 @@
       $('weather-host').value = _settings.weather.host;
       setKeyStatus('weather-key-status', _settings.weather.apiKey, 'weather-key');
       // minimax
+      $('llm-provider').value = _settings.minimax.llmProvider || 'minimax';
+      $('deepseek-base').value = _settings.minimax.deepseekBase || '';
+      $('deepseek-model').value = _settings.minimax.deepseekModel || 'deepseek-v4-flash';
       $('mmx-anthropic-base').value = _settings.minimax.anthropicBase;
       $('mmx-anthropic-model').value = _settings.minimax.anthropicModel;
+      $('tts-enabled').checked = _settings.minimax.ttsEnabled !== false;
       $('mmx-tts-base').value = _settings.minimax.ttsBase;
       $('mmx-tts-model').value = _settings.minimax.ttsModel;
       $('mmx-tts-voice').value = _settings.minimax.ttsVoiceId;
       setKeyStatus('mmx-key-status', _settings.minimax.apiKey, 'mmx-key');
+      setKeyStatus('deepseek-key-status', _settings.minimax.deepseekApiKey, 'deepseek-key');
+      renderModelFields();
       // Library
       $('stations-dir').value = _settings.library.stationsDir;
       // Alarm
@@ -342,23 +405,36 @@
     }
 
     async function saveMmx() {
-      const body = { minimax: {} };
+      const body = { minimax: {
+        llmProvider: $('llm-provider').value,
+        ttsEnabled: $('tts-enabled').checked,
+      } };
       const k = $('mmx-key').value;
       if (k === '') {
-        if (confirm('确定要清除 minimax Token 吗？清除后 LLM + TTS 会失败。')) {
+        if (_settings.minimax.apiKey.set && confirm('确定要清除 MiniMax Token 吗？')) {
           body.minimax.apiKey = '';
-        } else {
-          return;
         }
       } else if (k) {
         body.minimax.apiKey = k;
       }
+      const deepseekKey = $('deepseek-key').value;
+      if (deepseekKey === '') {
+        if (_settings.minimax.deepseekApiKey.set && confirm('确定要清除 DeepSeek API Key 吗？')) {
+          body.minimax.deepseekApiKey = '';
+        }
+      } else {
+        body.minimax.deepseekApiKey = deepseekKey;
+      }
       const m = (id) => $(id).value.trim();
+      const v_deepseekBase = m('deepseek-base');
+      const v_deepseekModel = m('deepseek-model');
       const v_anthropicBase = m('mmx-anthropic-base');
       const v_anthropicModel = m('mmx-anthropic-model');
       const v_ttsBase = m('mmx-tts-base');
       const v_ttsModel = m('mmx-tts-model');
       const v_ttsVoice = m('mmx-tts-voice');
+      if (v_deepseekBase) body.minimax.deepseekBase = v_deepseekBase;
+      if (v_deepseekModel) body.minimax.deepseekModel = v_deepseekModel;
       if (v_anthropicBase) body.minimax.anthropicBase = v_anthropicBase;
       if (v_anthropicModel) body.minimax.anthropicModel = v_anthropicModel;
       if (v_ttsBase) body.minimax.ttsBase = v_ttsBase;
@@ -405,6 +481,7 @@
         // Clear input fields after save
         $('weather-key').value = '';
         $('mmx-key').value = '';
+        $('deepseek-key').value = '';
       } catch (e) { toast('保存失败: ' + e.message, true); }
     }
 

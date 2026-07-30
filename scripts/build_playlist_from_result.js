@@ -48,8 +48,13 @@ const DEFAULT_SETTINGS = {
   },
   minimax: {
     apiKey:         '',
+    llmProvider:    'minimax',
+    deepseekApiKey: '',
+    deepseekBase:   'https://api.deepseek.com/chat/completions',
+    deepseekModel:  'deepseek-v4-flash',
     anthropicBase:  'https://api.minimaxi.com/anthropic/v1/messages',
     anthropicModel: 'MiniMax-M3',
+    ttsEnabled:     true,
     ttsBase:        'https://api.minimaxi.com/v1/t2a_v2',
     ttsModel:       'speech-02-turbo',
     ttsVoiceId:     'male-qn-qingse',
@@ -82,9 +87,13 @@ const SERVER_BASE = process.env.RADIO_STREAMS_URL || 'http://127.0.0.1:3000';
 const ANTHROPIC_KEY     = SETTINGS.minimax.apiKey || (() => { try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf-8')).api_key; } catch { return null; } })();
 const ANTHROPIC_BASE    = SETTINGS.minimax.anthropicBase;
 const ANTHROPIC_MODEL   = SETTINGS.minimax.anthropicModel;
+const LLM_PROVIDER      = SETTINGS.minimax.llmProvider;
+const LLM_BASE          = LLM_PROVIDER === 'deepseek' ? SETTINGS.minimax.deepseekBase : ANTHROPIC_BASE;
+const LLM_MODEL         = LLM_PROVIDER === 'deepseek' ? SETTINGS.minimax.deepseekModel : ANTHROPIC_MODEL;
 const TTS_BASE          = SETTINGS.minimax.ttsBase;
 const TTS_MODEL         = SETTINGS.minimax.ttsModel;
 const TTS_VOICE_ID      = SETTINGS.minimax.ttsVoiceId;
+const TTS_ENABLED       = SETTINGS.minimax.ttsEnabled !== false;
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const PLAYLIST_ROOT = path.join(PROJECT_ROOT, '.radio_playlist');
@@ -408,14 +417,24 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
     // MiniMax, so operators can see exactly what went over the wire
     // (Anthropic-compatible format with `system` and `messages[]`).
     const anthropicHttpRequest = JSON.stringify({
-      url: ANTHROPIC_BASE,
-      headers: {
+      url: LLM_BASE,
+      headers: LLM_PROVIDER === 'deepseek' ? {
+        authorization: 'Bearer <redacted>',
+        'content-type': 'application/json',
+      } : {
         'x-api-key': '<redacted>',
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
-      body: {
-        model: ANTHROPIC_MODEL,
+      body: LLM_PROVIDER === 'deepseek' ? {
+        model: LLM_MODEL,
+        max_tokens: 4000,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      } : {
+        model: LLM_MODEL,
         max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
@@ -797,17 +816,33 @@ async function buildOneSong(song, idx, total, scene, stamp, introsDir, playlist,
   log(`[${idx}/${total}] ${name}`);
   log(`  intro: "${introText}"`);
 
+  const songPath = song.filePath;
+  if (!songPath || !fs.existsSync(songPath)) {
+    throw new Error(`song file missing: ${songPath}`);
+  }
+
+  if (!TTS_ENABLED) {
+    const sizeKb = Math.round(fs.statSync(songPath).size / 1024);
+    log(`  ✓ TTS disabled, using original track (${sizeKb} KB)`);
+    playlist.push({
+      index: idx,
+      name,
+      intro_text: '',
+      intro_file: null,
+      intro_url: null,
+      track_url: `/audio/local/track/${encodeURIComponent(name)}`,
+      stitched_url: `/audio/local/track/${encodeURIComponent(name)}`,
+      size_kb: sizeKb,
+    });
+    return;
+  }
+
   const ttsOk = await ttsApi(introText, ttsRaw);
   if (!ttsOk) throw new Error('tts failed');
 
   const stereoOk = await transcodeToStereo(ttsRaw, introFile);
   try { fs.unlinkSync(ttsRaw); } catch {}
   if (!stereoOk) throw new Error('transcode failed');
-
-  const songPath = song.filePath;
-  if (!songPath || !fs.existsSync(songPath)) {
-    throw new Error(`song file missing: ${songPath}`);
-  }
 
   // Normalize the song to match the intro's encoding (128kbps 44.1kHz
   // stereo). Direct concatenation of differently-encoded MP3s causes
@@ -896,9 +931,13 @@ async function main() {
 
   // Batch-call the LLM ONCE with all song names, get back intros for
   // every song in one shot. ~10-15s instead of 20 × 7s = 140s.
-  log(`[llm-batch] asking LLM for ${songs.length} intros in one call…`);
+  log(TTS_ENABLED
+    ? `[llm-batch] asking LLM for ${songs.length} intros in one call…`
+    : '[llm-batch] TTS disabled — skipping intro generation');
   const llmStart = Date.now();
-  const { introMap, prompt, response, httpRequest } = await generateIntrosBatch(songs, scene, promptCfg, log);
+  const { introMap, prompt, response, httpRequest } = TTS_ENABLED
+    ? await generateIntrosBatch(songs, scene, promptCfg, log)
+    : { introMap: new Map(), prompt: '', response: '', httpRequest: '' };
   const llmMs = Date.now() - llmStart;
   log(`[llm-batch] got ${introMap.size}/${songs.length} intros from LLM (${llmMs}ms)`);
   // Persist full prompt + raw response + parsed intros to queue_state
@@ -946,7 +985,7 @@ async function main() {
       failed,
       current_song: song.name,
       intro_text: introText,
-      sub_phase: 'tts_transcode',
+      sub_phase: TTS_ENABLED ? 'tts_transcode' : 'track_only',
     });
     try {
       await buildOneSong(song, idx, songs.length, scene, stamp, introsDir, playlist, introText);

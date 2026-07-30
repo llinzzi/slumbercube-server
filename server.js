@@ -153,8 +153,13 @@ const DEFAULT_SETTINGS = {
     // (the mmx CLI's own config) as fallback. This way users who already
     // ran `mmx auth` don't have to copy their key into the Settings UI.
     apiKey:         '',
+    llmProvider:    'minimax',
+    deepseekApiKey: '',
+    deepseekBase:   'https://api.deepseek.com/chat/completions',
+    deepseekModel:  'deepseek-v4-flash',
     anthropicBase:  'https://api.minimaxi.com/anthropic/v1/messages',
     anthropicModel: 'MiniMax-M3',
+    ttsEnabled:     true,
     ttsBase:        'https://api.minimaxi.com/v1/t2a_v2',
     ttsModel:       'speech-02-turbo',
     ttsVoiceId:     'male-qn-qingse',
@@ -231,7 +236,9 @@ const STATE_FILE = path.join(__dirname, '.radio_state.json');
 
 let currentVolume = 80; // 1-100
 let currentLocalStation = null;
-let ttsIntroEnabled = false;
+function isTtsActive() {
+  return loadSettings().minimax.ttsEnabled !== false;
+}
 const INTROS_DIR = path.join(os.homedir(), '.cache', 'radio_intros');
 // Track played songs to avoid repetition in AI selection
 const playedHistory = [];
@@ -261,16 +268,13 @@ function loadState() {
       if (data.volume && data.volume >= 1 && data.volume <= 100) {
         currentVolume = data.volume;
       }
-      if (typeof data.ttsIntroEnabled === 'boolean') {
-        ttsIntroEnabled = data.ttsIntroEnabled;
-      }
     }
   } catch (e) { console.error('loadState error:', e.message); }
 }
 
 function saveState() {
   try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ volume: currentVolume, ttsIntroEnabled }));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ volume: currentVolume }));
   } catch (e) { console.error('saveState error:', e.message); }
 }
 
@@ -856,7 +860,7 @@ class RadioStation {
       if (buf.length > 0) flushMeta(path.basename(files[(idx-2+files.length)%files.length],'.mp3'));
 
       // TTS intro: send cached intro before song (for continuous stream)
-      if (ttsIntroEnabled) {
+      if (isTtsActive()) {
         const introPath = getIntroPath(name);
         if (fs.existsSync(introPath)) {
           try {
@@ -1397,7 +1401,7 @@ app.get('/api/esp', async (req, res) => {
   // AI selects the next song based on weather/time/mood
   // Runs in BACKGROUND so /api/esp returns fast (ESP32 has 5s timeout).
   // Result is picked up on the NEXT /api/esp call via `pendingSong` flag.
-  if (ttsIntroEnabled && !pendingSong) {
+  if (isTtsActive() && !pendingSong) {
     // Kick off async selection
     const songListStr = available.slice(0, 50).join('、');  // limit to 50 songs
     const ctx = `${timePeriod}，余杭`;
@@ -1422,7 +1426,7 @@ app.get('/api/esp', async (req, res) => {
 
   // Use AI pre-selected song if available, else random unplayed
   let selected;
-  if (ttsIntroEnabled && pendingSong && available.includes(pendingSong)) {
+  if (isTtsActive() && pendingSong && available.includes(pendingSong)) {
     selected = pendingSong;
     pendingSong = null;
     console.log(`[ai-esp] Using AI pre-selected: ${selected}`);
@@ -1440,7 +1444,7 @@ app.get('/api/esp', async (req, res) => {
 
   // Pre-generate intro buffer in background so track endpoint can serve instantly
   // (ESP32 has 5-second HTTP timeout, so /api/esp must return fast)
-  if (ttsIntroEnabled) {
+  if (isTtsActive()) {
     const songName = selected;
     (async () => {
       const set = introBufferCache._pending || (introBufferCache._pending = new Set());
@@ -1978,8 +1982,13 @@ app.get('/api/settings', (req, res) => {
     },
     minimax: {
       apiKey: maskKey(mmxKey),
+      llmProvider: s.minimax.llmProvider,
+      deepseekApiKey: maskKey(s.minimax.deepseekApiKey),
+      deepseekBase: s.minimax.deepseekBase,
+      deepseekModel: s.minimax.deepseekModel,
       anthropicBase: s.minimax.anthropicBase,
       anthropicModel: s.minimax.anthropicModel,
+      ttsEnabled: s.minimax.ttsEnabled !== false,
       ttsBase: s.minimax.ttsBase,
       ttsModel: s.minimax.ttsModel,
       ttsVoiceId: s.minimax.ttsVoiceId,
@@ -2027,7 +2036,18 @@ app.post('/api/settings', express.json(), (req, res) => {
         next.minimax.apiKey = k;
       }
     }
-    for (const f of ['anthropicBase', 'anthropicModel', 'ttsBase', 'ttsModel', 'ttsVoiceId']) {
+    if (typeof body.minimax.deepseekApiKey === 'string') {
+      const k = body.minimax.deepseekApiKey;
+      if (k === '') next.minimax.deepseekApiKey = '';
+      else if (!k.includes('…')) next.minimax.deepseekApiKey = k;
+    }
+    if (['minimax', 'deepseek'].includes(body.minimax.llmProvider)) {
+      next.minimax.llmProvider = body.minimax.llmProvider;
+    }
+    if (typeof body.minimax.ttsEnabled === 'boolean') {
+      next.minimax.ttsEnabled = body.minimax.ttsEnabled;
+    }
+    for (const f of ['deepseekBase', 'deepseekModel', 'anthropicBase', 'anthropicModel', 'ttsBase', 'ttsModel', 'ttsVoiceId']) {
       if (typeof body.minimax[f] === 'string' && body.minimax[f].length) {
         next.minimax[f] = body.minimax[f];
       }
@@ -2069,8 +2089,13 @@ app.post('/api/settings', express.json(), (req, res) => {
       weather: { host: next.weather.host, apiKey: maskKey(next.weather.apiKey) },
       minimax: {
         apiKey: maskKey(next.minimax.apiKey),
+        llmProvider: next.minimax.llmProvider,
+        deepseekApiKey: maskKey(next.minimax.deepseekApiKey),
+        deepseekBase: next.minimax.deepseekBase,
+        deepseekModel: next.minimax.deepseekModel,
         anthropicBase: next.minimax.anthropicBase,
         anthropicModel: next.minimax.anthropicModel,
+        ttsEnabled: next.minimax.ttsEnabled !== false,
         ttsBase: next.minimax.ttsBase,
         ttsModel: next.minimax.ttsModel,
         ttsVoiceId: next.minimax.ttsVoiceId,
@@ -2087,10 +2112,12 @@ app.post('/api/settings', express.json(), (req, res) => {
 });
 
 // ---------------------------------------------------------------
-// TTS Intro — toggle and status
+// TTS Intro — compatibility API. The single source of truth is settings.
 // ---------------------------------------------------------------
 app.get('/api/tts-intro', (req, res) => {
-  res.json({ enabled: ttsIntroEnabled });
+  res.json({
+    enabled: isTtsActive(),
+  });
 });
 
 app.post('/api/tts-intro', express.json(), (req, res) => {
@@ -2098,10 +2125,11 @@ app.post('/api/tts-intro', express.json(), (req, res) => {
   if (typeof enabled !== 'boolean') {
     return res.status(400).json({ ok: false, error: 'enabled must be boolean' });
   }
-  ttsIntroEnabled = enabled;
-  saveState();
+  const next = JSON.parse(JSON.stringify(loadSettings()));
+  next.minimax.ttsEnabled = enabled;
+  saveSettings(next);
   console.log(`[tts] ${enabled ? 'ENABLED' : 'DISABLED'}`);
-  res.json({ ok: true, enabled: ttsIntroEnabled });
+  res.json({ ok: true, enabled: isTtsActive() });
 });
 
 // ---------------------------------------------------------------
@@ -2979,7 +3007,7 @@ const trackMatch = req.url.match(/^\/audio\/local\/track\/(.+)$/);
     // When TTS intro is enabled, skip Range support — we serve intro+song
     // as one blob so the browser gets the full intro before the song.
     // Also skip when no station is set.
-    if (!range || ttsIntroEnabled) {
+    if (!range || isTtsActive()) {
       // Full-file path: strip ID3v2 header, ID3v1 trailer, and encoder padding
       // (0xAA / 0x55 / 0x00 runs after the last valid MP3 frame). These are the
       // most common source of "clicking / pop / hiss at the end of a track"
@@ -2993,7 +3021,7 @@ const trackMatch = req.url.match(/^\/audio\/local\/track\/(.+)$/);
       }
 
       // TTS intro prepend — use pre-generated buffer if available
-      if (ttsIntroEnabled) {
+      if (isTtsActive()) {
         let introBuf = null;
 
         // 1) Fast path: pre-generated buffer from /api/esp

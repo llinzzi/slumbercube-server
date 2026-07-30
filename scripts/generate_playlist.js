@@ -156,66 +156,22 @@ function checkCancelled() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// MiniMax Anthropic-compatible API — direct HTTP, no mmx CLI
-const ANTHROPIC_BASE = 'https://api.minimaxi.com/anthropic/v1/messages';
-const ANTHROPIC_KEY = (() => {
+// Shared LLM helper supports both MiniMax and DeepSeek.
+process.env.LLM_HELPER_TAG = 'playlist-llm';
+const llmHelper = require('./lib/llm_helper');
+const RUNTIME_SETTINGS = (() => {
   try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.mmx', 'config.json'), 'utf8'));
-    return cfg.api_key || null;
-  } catch { return null; }
+    return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'config', 'settings.json'), 'utf8'));
+  } catch { return {}; }
 })();
-const ANTHROPIC_MODEL = 'MiniMax-M3';  // 1M context, handles 262 tracks easily
+const TTS_ENABLED = RUNTIME_SETTINGS.minimax?.ttsEnabled !== false;
 
 async function anthropicChat(prompt, timeoutMs = 180000) {
-  if (!ANTHROPIC_KEY) {
-    log('anthropic: no API key found in ~/.mmx/config.json');
-    return null;
-  }
-  try {
-    const body = JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const result = await new Promise((resolve, reject) => {
-      const https = require('https');
-      const req = https.request(ANTHROPIC_BASE, {
-        method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        timeout: timeoutMs,
-      }, (res) => {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => {
-          try {
-            const raw = Buffer.concat(chunks).toString();
-            const data = JSON.parse(raw);
-            if (data.error) reject(new Error(data.error.message || JSON.stringify(data.error)));
-            else resolve(data);
-          } catch (e) { reject(e); }
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-      req.write(body);
-      req.end();
-    });
-    // Parse Anthropic response format
-    const text = (result.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
-      .trim();
-    log(`anthropic: OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
-    return text || null;
-  } catch (e) {
-    log('anthropic failed:', e.message.slice(0, 500));
-    return null;
-  }
+  return llmHelper.anthropicChat('', prompt, {
+    timeoutMs,
+    max_tokens: 4000,
+    temperature: 0.7,
+  });
 }
 
 // MiniMax TTS API — direct HTTP POST, no mmx CLI
@@ -734,6 +690,26 @@ Summer | 久石让 | 窗外的阳光像蜂蜜一样黏在川川的睫毛上，�
     const stitchedFile = path.join(introsDir, `${idx}.stitched.mp3`);
 
     log(`[${idx}/${songs.length}] ${name} → "${intro}"`);
+
+    if (!TTS_ENABLED) {
+      if (!songPathFromIndex || !fs.existsSync(songPathFromIndex)) {
+        log(`  ✗ song file not found for "${name}"`);
+        failed++;
+        continue;
+      }
+      playlist.push({
+        index: idx,
+        name,
+        intro_text: '',
+        intro_file: null,
+        intro_url: null,
+        track_url: `/audio/local/track/${encodeURIComponent(name)}`,
+        stitched_url: `/audio/local/track/${encodeURIComponent(name)}`,
+      });
+      log(`  ✓ TTS disabled, using original track`);
+      continue;
+    }
+
     reportProgress({ progress: { current: idx, current_song: name, phase: 'tts' } });
 
     // TTS
