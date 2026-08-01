@@ -697,14 +697,16 @@ Summer | 久石让 | 窗外的阳光像蜂蜜一样黏在川川的睫毛上，�
         failed++;
         continue;
       }
+      const trackName = path.basename(songPathFromIndex, path.extname(songPathFromIndex));
+      const trackUrl = `/audio/local/track/${encodeURIComponent(trackName)}`;
       playlist.push({
         index: idx,
         name,
         intro_text: '',
         intro_file: null,
         intro_url: null,
-        track_url: `/audio/local/track/${encodeURIComponent(name)}`,
-        stitched_url: `/audio/local/track/${encodeURIComponent(name)}`,
+        track_url: trackUrl,
+        stitched_url: trackUrl,
       });
       log(`  ✓ TTS disabled, using original track`);
       continue;
@@ -775,7 +777,7 @@ Summer | 久石让 | 窗外的阳光像蜂蜜一样黏在川川的睫毛上，�
       intro_text: intro,
       intro_file: `${INTRO_REL_DIR}/${idx}.mp3`,
       intro_url: `/audio/playlist-intro/${stamp}/${idx}.mp3`,
-      track_url: `/audio/local/track/${encodeURIComponent(name)}`,
+      track_url: `/audio/local/track/${encodeURIComponent(path.basename(songPath, path.extname(songPath)))}`,
       stitched_url: `/audio/playlist-stitched/${stamp}/${idx}.mp3`,
     });
     log(`  ✓ ${name} (${(fs.statSync(stitchedFile).size / 1024).toFixed(0)} KB stitched)`);

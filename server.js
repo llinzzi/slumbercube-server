@@ -2955,6 +2955,11 @@ function buildSongLookup() {
   // Returns Map<normalizedName, absolutePath>
   // Single-library mode — walk STATIONS_DIR directly (no nested station dirs).
   const map = new Map();
+  // Older playlists used the logical song title (for example `Mary`) while
+  // downloaded files include the artist (`Mary - Big Thief.mp3`). Keep a
+  // title alias only when it resolves to exactly one file, so stale playlists
+  // remain playable without choosing arbitrarily between duplicate titles.
+  const titleAliases = new Map();
   const STATIONS_ROOT = process.env.STATIONS_ROOT || STATIONS_DIR;
   if (!fs.existsSync(STATIONS_ROOT)) return map;
   for (const f of fs.readdirSync(STATIONS_ROOT)) {
@@ -2962,6 +2967,16 @@ function buildSongLookup() {
     const base = f.slice(0, -4);  // strip .mp3
     const norm = unicodeNormalize(base);
     if (!map.has(norm)) map.set(norm, path.join(STATIONS_ROOT, f));  // first match wins
+    const separator = base.lastIndexOf(' - ');
+    if (separator > 0) {
+      const title = unicodeNormalize(base.slice(0, separator));
+      const fp = path.join(STATIONS_ROOT, f);
+      if (!titleAliases.has(title)) titleAliases.set(title, fp);
+      else if (titleAliases.get(title) !== fp) titleAliases.set(title, null);
+    }
+  }
+  for (const [title, fp] of titleAliases) {
+    if (fp && !map.has(title)) map.set(title, fp);
   }
   return map;
 }

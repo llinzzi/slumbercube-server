@@ -823,6 +823,8 @@ async function buildOneSong(song, idx, total, scene, stamp, introsDir, playlist,
 
   if (!TTS_ENABLED) {
     const sizeKb = Math.round(fs.statSync(songPath).size / 1024);
+    const trackName = path.basename(songPath, path.extname(songPath));
+    const trackUrl = `/audio/local/track/${encodeURIComponent(trackName)}`;
     log(`  ✓ TTS disabled, using original track (${sizeKb} KB)`);
     playlist.push({
       index: idx,
@@ -830,8 +832,8 @@ async function buildOneSong(song, idx, total, scene, stamp, introsDir, playlist,
       intro_text: '',
       intro_file: null,
       intro_url: null,
-      track_url: `/audio/local/track/${encodeURIComponent(name)}`,
-      stitched_url: `/audio/local/track/${encodeURIComponent(name)}`,
+      track_url: trackUrl,
+      stitched_url: trackUrl,
       size_kb: sizeKb,
     });
     return;
@@ -866,7 +868,7 @@ async function buildOneSong(song, idx, total, scene, stamp, introsDir, playlist,
     intro_text: introText,
     intro_file: `intros/${idx}.mp3`,
     intro_url: `/audio/playlist-intro/${stamp}/${idx}.mp3`,
-    track_url: `/audio/local/track/${encodeURIComponent(name)}`,
+    track_url: `/audio/local/track/${encodeURIComponent(path.basename(songPath, path.extname(songPath)))}`,
     stitched_url: `/audio/playlist-stitched/${stamp}/${idx}.mp3`,
     size_kb: sizeKb,
   });
