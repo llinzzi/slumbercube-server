@@ -138,7 +138,7 @@ async function anthropicChat(system, user, opts = {}) {
         .map(b => b.text)
         .join('\n'))
       .trim();
-    log(`OK (${text.length} chars, ${result.usage?.output_tokens || '?'} tokens)`);
+    log(`${text ? 'OK' : 'EMPTY'} (${text.length} chars, ${result.usage?.output_tokens ?? result.usage?.completion_tokens ?? '?'} tokens, finish=${result.choices?.[0]?.finish_reason || result.stop_reason || '?'})`);
     return text || null;
   } catch (e) {
     log('failed:', e.message.slice(0, 500));

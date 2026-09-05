@@ -173,7 +173,7 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
   // Recent chosen playlist IDs (avoid picking the same one)
   const recent = loadSceneHistory(sceneName, 5);
   const recentIds = recent.map(l => {
-    const m = l.match(/chosen=\d+\|([^|]+)/);
+    const m = l.match(/chosen=(\d+)\|/);
     return m ? m[1] : null;
   }).filter(Boolean).slice(0, 5);
   const recentIdsStr = recentIds.length ? recentIds.join(', ') : '(无)';
@@ -190,8 +190,9 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
     .replace(/\$\{recentPlaylistIds\}/g, recentIdsStr)
     .replace(/\$\{historyCount\}/g, String(recent.length));
   console.log(`[${sceneName}] llm-select: requesting...`);
-  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.3 });
-  if (!text) return null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: attempt ? 4096 : 2048, temperature: 0.3 });
+  if (!text) continue;
   const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
   // Try JSON object form first: {"playlist_id":"123"} or {"playlist_id":"SKIP"}
   try {
@@ -199,17 +200,17 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
     if (obj && typeof obj.playlist_id === 'string') {
       const id = obj.playlist_id.trim();
       if (id === 'SKIP') { console.log(`[${sceneName}] llm-select: SKIP`); return 'SKIP'; }
-      console.log(`[${sceneName}] llm-select: chose id=${id}`);
-      return id;
+      if (top.some(c => String(c.id) === id)) return id;
     }
   } catch {}
   // Try bare number (just the id)
   const m = cleaned.match(/^"?(\d+)"?$/);
-  if (m) {
+  if (m && top.some(c => String(c.id) === m[1])) {
     console.log(`[${sceneName}] llm-select: bare id ${m[1]}`);
     return m[1];
   }
   console.log(`[${sceneName}] llm-select: parse fail, text=${cleaned.slice(0, 100)}`);
+  }
   return null;
 }
 
@@ -361,7 +362,11 @@ async function searchScene(sceneName, opts = {}) {
     }
   }
 
+  // When every generated query explicitly asks for piano, unrelated
+  // instruments returned by broad search must not win on popularity alone.
+  const pianoOnly = keywords.every(kw => /钢琴|piano/i.test(kw));
   const candidates = Array.from(seen.values())
+    .filter(c => !pianoOnly || /钢琴|piano/i.test(c.name))
     .map((c) => ({ ...c, score: score(c) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);

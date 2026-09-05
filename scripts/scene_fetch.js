@@ -179,18 +179,24 @@ async function main() {
           llm_picked_id = llmId;
           log(`LLM chose playlist ${llmId} (${match.name})`);
         } else {
-          log(`LLM returned ${llmId} not in candidates, falling back to score-sort`);
+        log(`LLM returned ${llmId} not in candidates`);
         }
       } else if (llmId === 'SKIP') {
-        log(`LLM said SKIP — falling back to score-sort`);
+        log(`LLM said SKIP — no playlist will be adopted`);
       } else {
-        log(`LLM picker returned no valid id, falling back to score-sort`);
+        log(`LLM picker returned no valid id after retries`);
       }
     } catch (e) {
       log(`LLM picker error: ${e.message.slice(0, 100)}`);
     }
   }
-  if (!candidate) candidate = searchResult.candidates[0] || null;
+  if (!candidate && searchResult.candidates.length) {
+    const error = '歌单选择未得到有效结果，已停止，请重试';
+    audit.append(sceneName, { scene: sceneName, outcome: 'selection_failed',
+      queried_keywords: searchResult.used_keywords, candidates: searchResult.candidates });
+    reportProgress({ state: 'failed', result: { error } });
+    process.exit(1);
+  }
   if (!candidate) {
     log('NO FRESH CANDIDATE — dedup exhausted for this scene');
     audit.append(sceneName, {
@@ -227,7 +233,10 @@ async function main() {
         process.exit(2);
       }
       try {
-        adopted = await adopt(sceneName, remaining[0].id, remaining[0].matched_keyword);
+        const retryId = await selectPlaylistWithLLM({ sceneName, candidates: remaining, weatherToday, weatherTomorrow });
+        const retryCandidate = remaining.find(c => String(c.id) === retryId);
+        if (!retryCandidate) throw new Error('No valid alternative playlist selected');
+        adopted = await adopt(sceneName, retryCandidate.id, retryCandidate.matched_keyword);
       } catch (e2) {
         log(`retry also failed: ${e2.message}`);
         audit.append(sceneName, { scene: sceneName, outcome: 'adopt_error', error: e2.message });
