@@ -39,6 +39,42 @@
     }
     .refresh-btn:hover { color: var(--text); border-color: var(--text-dim); }
 
+    .storage-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .storage-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .storage-card .label { color: var(--text-dim); font-size: 11px; margin-bottom: 4px; }
+    .storage-card .value { color: var(--text); font-size: 18px; font-weight: 600; }
+    .storage-card .detail { color: var(--text-dim); font-size: 10px; margin-top: 3px; }
+    .storage-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: -2px 0 14px;
+    }
+    .danger-btn {
+      background: transparent;
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.45);
+      border-radius: 4px;
+      padding: 5px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .danger-btn:hover { background: rgba(248,113,113,0.08); }
+    .danger-btn:disabled { opacity: 0.45; cursor: wait; }
+    .storage-status { color: var(--text-dim); font-size: 11px; }
+
     .search { margin-bottom: 14px; }
     .search input {
       width: 100%;
@@ -69,7 +105,19 @@
       padding: 12px 16px;
       background: var(--surface2);
       border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
     }
+    .group.collapsed .group-head { border-bottom: none; }
+    .group-head:hover { background: rgba(255,255,255,0.035); }
+    .group-head .toggle {
+      color: var(--text-dim);
+      width: 14px;
+      font-size: 11px;
+      transition: transform 0.15s ease;
+    }
+    .group:not(.collapsed) .group-head .toggle { transform: rotate(90deg); }
+    .group.collapsed .songs { display: none; }
     .group-head .name {
       flex: 1;
       font-weight: 600;
@@ -109,10 +157,14 @@
     .songs tbody tr { border-bottom: 1px solid var(--border); }
     .songs tbody tr:last-child { border-bottom: none; }
     .songs tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .songs tbody tr.selected { background: rgba(34,197,94,0.08); }
     .songs td { padding: 7px 16px; font-size: 12px; }
     .songs td.num { font-family: 'SF Mono', monospace; color: var(--text-dim); width: 50px; }
     .songs td.title { font-weight: 500; }
     .songs td.artist { color: var(--text-dim); }
+    .songs td.audio-info { font-family: 'SF Mono', monospace; color: var(--text-dim); min-width: 190px; font-size: 11px; }
+    .audio-info .primary { color: var(--text); }
+    .audio-info .secondary { margin-top: 2px; }
     .songs td.time { font-family: 'SF Mono', monospace; color: var(--text-dim); width: 160px; font-size: 11px; }
     .songs td.act { width: 70px; text-align: right; }
 
@@ -128,6 +180,20 @@
       transition: all 0.15s;
     }
     .play-btn:hover { border-color: var(--accent); background: rgba(34,197,94,0.08); }
+    .select-btn {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 9px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      margin-left: 5px;
+    }
+    .select-btn:hover, .select-btn.selected { color: var(--accent); border-color: var(--accent); }
+    .select-btn:disabled { opacity: 0.6; cursor: wait; }
 
     .state {
       padding: 28px 20px;
@@ -167,6 +233,9 @@
       line-height: 1;
     }
     .preview .close:hover { color: var(--text); }
+    @media (max-width: 720px) {
+      .storage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
   </style>
 </head>
 <body>
@@ -179,6 +248,34 @@
         <span class="sub" id="meta">加载中…</span>
         <button class="refresh-btn" id="refresh">刷新</button>
       </div>
+    </div>
+
+    <div class="storage-grid">
+      <div class="storage-card">
+        <div class="label">原始 MP3</div>
+        <div class="value" id="original-size">—</div>
+        <div class="detail" id="original-count">—</div>
+      </div>
+      <div class="storage-card">
+        <div class="label">TTS 语音</div>
+        <div class="value" id="tts-size">—</div>
+        <div class="detail" id="tts-count">—</div>
+      </div>
+      <div class="storage-card">
+        <div class="label">拼接 MP3</div>
+        <div class="value" id="stitched-size">—</div>
+        <div class="detail" id="stitched-count">—</div>
+      </div>
+      <div class="storage-card">
+        <div class="label">磁盘剩余 / 总量</div>
+        <div class="value" id="disk-free">—</div>
+        <div class="detail" id="disk-total">—</div>
+      </div>
+    </div>
+    <div class="storage-actions">
+      <button class="danger-btn" id="clear-tts">清空 TTS MP3</button>
+      <button class="danger-btn" id="clear-stitched">清空拼接 MP3</button>
+      <span class="storage-status" id="storage-status">只清理生成文件，不会删除原始曲库。</span>
     </div>
 
     <div class="search">
@@ -209,9 +306,13 @@
     const pTitle = document.getElementById('p-title');
     const pArtist = document.getElementById('p-artist');
     const pClose = document.getElementById('p-close');
+    const storageStatus = document.getElementById('storage-status');
+    const clearTts = document.getElementById('clear-tts');
+    const clearStitched = document.getElementById('clear-stitched');
 
     let allSongs = [];
     let allPlaylists = []; // [{key, name, ids, songs, latestAt}]
+    let selectedNext = '';
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -225,6 +326,42 @@
       if (isNaN(d)) return '—';
       const pad = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function fmtBytes(bytes) {
+      if (bytes == null || !Number.isFinite(Number(bytes))) return '—';
+      const n = Number(bytes);
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let value = n, i = 0;
+      while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+      const digits = value >= 100 || i === 0 ? 0 : value >= 10 ? 1 : 2;
+      return `${value.toFixed(digits)} ${units[i]}`;
+    }
+
+    function fmtDuration(seconds) {
+      if (!Number.isFinite(Number(seconds))) return '—';
+      const total = Math.max(0, Math.round(Number(seconds)));
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function fmtAudioInfo(song) {
+      const rate = song.sample_rate_hz ? `${(song.sample_rate_hz / 1000).toFixed(1).replace('.0', '')} kHz` : '频率未知';
+      const channels = song.channels ? `${song.channels} 声道${song.channel_mode ? ` · ${song.channel_mode}` : ''}` : '声道未知';
+      const bitrate = song.bitrate_kbps ? `${song.bitrate_kbps} kbps` : '码率未知';
+      return `<div class="primary">${esc(rate)} · ${esc(channels)}</div>` +
+        `<div class="secondary">${esc(bitrate)} · ${esc(fmtDuration(song.duration_seconds))} · ${esc(fmtBytes(song.size_bytes))}</div>`;
+    }
+
+    function renderStorage(storage) {
+      const s = storage || {};
+      document.getElementById('original-size').textContent = fmtBytes(s.original?.bytes);
+      document.getElementById('original-count').textContent = `${s.original?.count || 0} 个文件`;
+      document.getElementById('tts-size').textContent = fmtBytes(s.tts?.bytes);
+      document.getElementById('tts-count').textContent = `${s.tts?.count || 0} 个文件`;
+      document.getElementById('stitched-size').textContent = fmtBytes(s.stitched?.bytes);
+      document.getElementById('stitched-count').textContent = `${s.stitched?.count || 0} 个文件`;
+      document.getElementById('disk-free').textContent = fmtBytes(s.disk?.free_bytes);
+      document.getElementById('disk-total').textContent = `总量 ${fmtBytes(s.disk?.total_bytes)}`;
     }
 
     function fmtRange(from, to) {
@@ -251,6 +388,7 @@
         const d = await r.json();
         allSongs = d.songs || [];
         allPlaylists = groupByPlaylist(allSongs);
+        renderStorage(d.storage);
         render();
         meta.textContent = `${d.total} 首 · ${allPlaylists.length} 个歌单`;
       } catch (e) {
@@ -320,7 +458,8 @@
 
       contentEl.innerHTML = visiblePlaylists.map(b => {
         const head = `
-          <div class="group-head">
+          <div class="group-head" role="button" tabindex="0" aria-expanded="false">
+            <div class="toggle">▶</div>
             <div class="name ${b.untagged ? 'untagged' : ''}">${esc(b.name)}</div>
             <div class="count">${b.songs.length} 首</div>
             <div class="meta">${esc(fmtRange(b.earliestAt, b.latestAt))}</div>
@@ -333,30 +472,52 @@
                 <th class="num">#</th>
                 <th>歌名</th>
                 <th>艺人</th>
+                <th>音频信息</th>
                 <th class="time">下载时间</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               ${b.songs.map((s, i) => `
-                <tr>
+                <tr data-song="${esc(s.title + (s.artist ? ` - ${s.artist}` : ''))}">
                   <td class="num">${i + 1}</td>
                   <td class="title">${esc(s.title || s.name)}</td>
                   <td class="artist">${esc(s.artist || '—')}</td>
+                  <td class="audio-info">${fmtAudioInfo(s)}</td>
                   <td class="time">${esc(fmtTime(s.downloaded_at))}</td>
                   <td class="act">
                     <button class="play-btn"
                             data-url="${esc(s.play_url)}"
                             data-title="${esc(s.title || s.name)}"
                             data-artist="${esc(s.artist || '')}">▶ 试听</button>
+                    <button class="select-btn"
+                            data-name="${esc((s.name || '').replace(/\.mp3$/i, ''))}">设为下一首</button>
                   </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         `;
-        return `<div class="group">${head}${table}</div>`;
+        return `<div class="group collapsed">${head}${table}</div>`;
       }).join('');
+
+      // Playlist groups start collapsed. Search results expand automatically
+      // so filtering never leaves matching songs hidden.
+      contentEl.querySelectorAll('.group').forEach(group => {
+        const head = group.querySelector('.group-head');
+        const setExpanded = expanded => {
+          group.classList.toggle('collapsed', !expanded);
+          head.setAttribute('aria-expanded', String(expanded));
+        };
+        if (filter) setExpanded(true);
+        head.addEventListener('click', () => setExpanded(group.classList.contains('collapsed')));
+        head.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            setExpanded(group.classList.contains('collapsed'));
+          }
+        });
+      });
 
       // Wire up play buttons
       contentEl.querySelectorAll('.play-btn').forEach(btn => {
@@ -367,6 +528,33 @@
           audio.src = btn.dataset.url;
           preview.classList.add('show');
           audio.play().catch(() => {});
+        });
+      });
+
+      contentEl.querySelectorAll('.select-btn').forEach(btn => {
+        if (btn.dataset.name === selectedNext) {
+          btn.classList.add('selected');
+          btn.textContent = '✓ 下一首';
+          btn.closest('tr')?.classList.add('selected');
+        }
+        btn.addEventListener('click', async ev => {
+          ev.stopPropagation();
+          btn.disabled = true;
+          try {
+            const r = await fetch('/api/select-next', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: btn.dataset.name }),
+            });
+            const d = await r.json();
+            if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            selectedNext = btn.dataset.name;
+            render();
+            storageStatus.textContent = `已将「${btn.dataset.name}」设为下一首，设备下次取曲时生效。`;
+          } catch (e) {
+            storageStatus.textContent = `切换失败：${e.message}`;
+            btn.disabled = false;
+          }
         });
       });
     }
@@ -380,6 +568,31 @@
 
     refresh.addEventListener('click', load);
     search.addEventListener('input', render);
+
+    async function clearGenerated(kind) {
+      const label = kind === 'tts' ? 'TTS MP3' : '拼接 MP3';
+      const warning = kind === 'stitched'
+        ? `确定清空全部${label}吗？当前使用拼接音频的歌单将无法播放，直到重新生成。`
+        : `确定清空全部${label}吗？原始歌曲和拼接 MP3 不会删除。`;
+      if (!confirm(warning)) return;
+      clearTts.disabled = true;
+      clearStitched.disabled = true;
+      storageStatus.textContent = `正在清理${label}…`;
+      try {
+        const r = await fetch(`/api/library/generated/${kind}`, { method: 'DELETE' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+        storageStatus.textContent = `已删除 ${d.deleted} 个${label}，释放 ${fmtBytes(d.bytes)}`;
+        await load();
+      } catch (e) {
+        storageStatus.textContent = `清理失败：${e.message}`;
+      } finally {
+        clearTts.disabled = false;
+        clearStitched.disabled = false;
+      }
+    }
+    clearTts.addEventListener('click', () => clearGenerated('tts'));
+    clearStitched.addEventListener('click', () => clearGenerated('stitched'));
 
     load();
   </script>

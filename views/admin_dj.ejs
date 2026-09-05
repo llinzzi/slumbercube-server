@@ -26,6 +26,35 @@
     .card { padding: 20px; }
     .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
 
+    .dj-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      margin-bottom: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .dj-tab {
+      flex: 1;
+      min-width: 112px;
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 14px;
+      background: transparent;
+      color: var(--text-dim);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .dj-tab:hover { color: var(--text); background: var(--surface2); }
+    .dj-tab.active { color: var(--accent); background: var(--surface2); font-weight: 600; }
+    .dj-tab-panel { display: none; }
+    .dj-tab-panel.active { display: block; }
+    .dj-tab-panel > .card { margin-bottom: 0; }
+
     /* State badge */
     .state-badge {
       display: inline-block;
@@ -295,7 +324,14 @@
   <h1 style="margin: 8px 0 4px;">🎧 DJ Agent</h1>
   <div class="subtitle" style="margin-bottom: 16px;">安睡小方电台的AI DJ控制台</div>
 
+  <nav class="dj-tabs" aria-label="DJ Agent 功能区">
+    <button class="dj-tab active" data-tab="status">📡 状态与任务</button>
+    <button class="dj-tab" data-tab="history">📚 运行历史</button>
+    <button class="dj-tab" data-tab="config">🎙️ Prompt 配置</button>
+  </nav>
+
   <!-- ====== 1. 当前状态 ====== -->
+  <section class="dj-tab-panel active" data-panel="status">
   <div class="card">
     <h2>📡 当前状态</h2>
     <div class="row">
@@ -327,21 +363,29 @@
       <div class="meta" style="margin-bottom:6px;">🎯 已选歌曲 <span id="selected-count">0</span> 首</div>
       <div id="selected-songs-list" style="font-size:12px;display:flex;flex-wrap:wrap;gap:4px;"></div>
     </div>
+  </div>
+  </section>
 
     <!-- 完整 run 历史：每次 trigger 一条 entry，含搜索详情 + LLM 详情 -->
     <!-- 紧跟 selected-songs-card 下方；按次折叠（点开看完整信息） -->
-    <div id="run-history-card" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+  <section class="dj-tab-panel" data-panel="history">
+    <div id="run-history-card" class="card" style="display:none;">
+      <h2>📚 运行历史</h2>
       <div class="meta" style="margin-bottom:8px; font-weight:600;">
-        📚 运行历史 <span id="run-history-count" class="meta" style="font-weight:400;margin-left:8px;"></span>
+        每次执行的搜索、下载、LLM 请求与生成结果
+        <span id="run-history-count" class="meta" style="font-weight:400;margin-left:8px;"></span>
         <button id="btn-refresh-history" class="btn" style="margin-left:8px;font-size:11px;padding:2px 8px;">🔄 刷新</button>
       </div>
       <div id="llm-history-list" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
+  </section>
 
     <!-- LLM Prompt 配置（可编辑 + 保存到 config/intro_prompts.json） -->
-    <div id="intro-prompts-card" style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+  <section class="dj-tab-panel" data-panel="config">
+    <div id="intro-prompts-card" class="card">
+      <h2>🎙️ Prompt 配置</h2>
       <div class="meta" style="margin-bottom:8px; font-weight:600;">
-        🎙️ LLM Prompt 配置
+        LLM Prompt 配置
         <span id="intro-prompts-status" class="meta" style="font-weight:400;margin-left:8px;color:var(--text-dim);">加载中…</span>
       </div>
 
@@ -395,9 +439,10 @@
         <button id="ip-preview-btn" class="btn">🔄 刷新预览</button>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- ====== 2+3 合并: 场景任务管理 ====== -->
+  <section class="dj-tab-panel active" data-panel="status">
   <div class="card" id="scene-manager">
     <h2>🗂️ 场景任务管理</h2>
     <div class="meta" style="margin-bottom:10px;">
@@ -423,6 +468,7 @@
       <span id="scene-saved-ts" class="meta" style="font-size:11px;color:var(--text-dim);"></span>
     </div>
   </div>
+  </section>
   <div id="toast" class="toast"></div>
 
   <script>
@@ -443,6 +489,27 @@
     let lastStatus = null;
     let personas = [];           // loaded from /api/dj/personas
     let selectedPersona = null;  // null = random; otherwise persona.id
+
+    const DJ_TAB_NAMES = new Set(['status', 'history', 'config']);
+    function activateDjTab(name, updateUrl = true) {
+      if (!DJ_TAB_NAMES.has(name)) name = 'status';
+      document.querySelectorAll('.dj-tab').forEach(btn => {
+        const active = btn.dataset.tab === name;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('.dj-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.panel === name);
+      });
+      localStorage.setItem('dj-agent-tab', name);
+      if (updateUrl) history.replaceState(null, '', `#${name}`);
+      if (name === 'history') renderLlmHistory();
+    }
+    document.querySelectorAll('.dj-tab').forEach(btn => {
+      btn.addEventListener('click', () => activateDjTab(btn.dataset.tab));
+    });
+    const initialTab = location.hash.slice(1) || localStorage.getItem('dj-agent-tab') || 'status';
+    activateDjTab(initialTab, false);
 
     const PERSONA_ICONS = {
       mom: '👩',
@@ -873,7 +940,10 @@
         const d = await r.json();
         const entries = d.entries || [];
         if (entries.length === 0) {
-          card.style.display = 'none';
+          card.style.display = 'block';
+          list.innerHTML = '<div class="meta" style="padding:20px;text-align:center;">暂无运行历史</div>';
+          const rhc = document.getElementById('run-history-count');
+          if (rhc) rhc.textContent = '';
           return;
         }
         card.style.display = 'block';

@@ -22,36 +22,36 @@ const MIN_SONG_SIZE = 200_000;         // bytes — below this, the file is almo
 const MIN_SONG_DURATION = 30;          // seconds — songs shorter than this are flagged as suspicious
 
 // MPEG1 Layer 3 bitrate table (kbps), index 0-15
-const MPEG1_BITRATES = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0];
+const MPEG1_BITRATES = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
 const MPEG2_BITRATES = [0, 8,  16, 24, 32,  40,  48,  56,  64,  80,  96,  112, 128, 144, 160, 0];
 const MPEG1_SAMPLE_RATES = [44100, 48000, 32000, 0];
 const MPEG2_SAMPLE_RATES = [22050, 24000, 16000, 0];
 const MPEG25_SAMPLE_RATES = [11025, 12000, 8000,  0];
 
 // Quick duration estimate from an MP3 file without ffprobe.
-// Reads the first 8KB, finds the first valid MPEG frame header, and
+// Reads a small chunk after the ID3 tag, finds the first valid MPEG frame header, and
 // computes duration = fileSize * 8 / bitrate. Skips ID3v2 tags.
-// Returns { bitrate, sampleRate, duration } or null on unparseable input.
+// Returns { bitrate, sampleRate, channels, channelMode, duration } or null.
 function estimateMp3Duration(filePath) {
   try {
     const stat = fs.statSync(filePath);
     if (stat.size < 1024) return null;
     const fd = fs.openSync(filePath, 'r');
-    const buf = Buffer.alloc(8192);
-    const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
-    fs.closeSync(fd);
-
-    // Skip ID3v2 header if present ("ID3" at offset 0)
+    const header = Buffer.alloc(10);
+    fs.readSync(fd, header, 0, header.length, 0);
     let offset = 0;
-    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+    if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
       // ID3v2 size is 4 bytes at offset 6, synchsafe integer
-      const id3Size = ((buf[6] & 0x7F) << 21) | ((buf[7] & 0x7F) << 14)
-                    | ((buf[8] & 0x7F) << 7) | (buf[9] & 0x7F);
+      const id3Size = ((header[6] & 0x7F) << 21) | ((header[7] & 0x7F) << 14)
+                    | ((header[8] & 0x7F) << 7) | (header[9] & 0x7F);
       offset = 10 + id3Size;
     }
+    const buf = Buffer.alloc(16384);
+    const bytesRead = fs.readSync(fd, buf, 0, buf.length, offset);
+    fs.closeSync(fd);
 
     // Scan for MPEG frame sync word 0xFFEx
-    for (let i = Math.max(offset, 0); i < bytesRead - 1; i++) {
+    for (let i = 0; i < bytesRead - 3; i++) {
       if (buf[i] !== 0xFF) continue;
       if ((buf[i + 1] & 0xE0) !== 0xE0) continue;
       // Skip if next byte looks like another sync (false positive)
@@ -72,8 +72,11 @@ function estimateMp3Duration(filePath) {
       } else if (versionIdx === 2) {
         bitrate = MPEG2_BITRATES[bitrateIdx] * 1000;
         sampleRate = MPEG2_SAMPLE_RATES[sampleRateIdx];
+      } else if (versionIdx === 0) {
+        bitrate = MPEG2_BITRATES[bitrateIdx] * 1000;
+        sampleRate = MPEG25_SAMPLE_RATES[sampleRateIdx];
       } else {
-        continue; // MPEG2.5 — rare, skip
+        continue;
       }
 
       if (!bitrate || !sampleRate) continue;
@@ -83,7 +86,15 @@ function estimateMp3Duration(filePath) {
       // slight overestimate — acceptable for our purpose (flagging
       // obviously-short files).
       const duration = Math.round((stat.size * 8) / bitrate);
-      return { bitrate: Math.round(bitrate / 1000), sampleRate, duration };
+      const channelModeIdx = (buf[i + 3] >> 6) & 0x3;
+      const channelModes = ['立体声', '联合立体声', '双声道', '单声道'];
+      return {
+        bitrate: Math.round(bitrate / 1000),
+        sampleRate,
+        channels: channelModeIdx === 3 ? 1 : 2,
+        channelMode: channelModes[channelModeIdx],
+        duration,
+      };
     }
     return null;
   } catch {
@@ -310,6 +321,7 @@ async function neteaseSearchAndDownload(name, artist, { logger } = {}) {
             playlist_id: _currentPlaylist?.id ?? null,
             playlist_name: _currentPlaylist?.name ?? null,
             downloaded_at: new Date().toISOString(),
+            audio_meta: meta || null,
           });
           return destPath;
         }
@@ -347,6 +359,7 @@ async function neteaseSearchAndDownload(name, artist, { logger } = {}) {
       playlist_id: _currentPlaylist?.id ?? null,
       playlist_name: _currentPlaylist?.name ?? null,
       downloaded_at: new Date().toISOString(),
+      audio_meta: durMeta || null,
     });
     return destPath;
   } catch (e) {
@@ -424,4 +437,5 @@ module.exports = {
   getCurrentPlaylist,
   appendLibraryIndex,
   readLibraryIndex,
+  estimateMp3Duration,
 };

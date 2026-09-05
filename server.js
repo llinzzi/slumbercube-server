@@ -252,6 +252,23 @@ const MAX_INTRO_CACHE = 3;  // keep at most 3 intros in memory
 
 // AI pre-selected song for next request (populated by background AI call)
 let pendingSong = null;
+// One manually selected library track, delivered on the next ESP poll even
+// while a generated DJ playlist is active. Per-device debounce keeps the
+// ESP's usual pair of startup requests on the same track.
+let manualNextSong = null;
+
+function manualSongForDevice(deviceId) {
+  if (!manualNextSong || Date.now() - manualNextSong.selectedAt > 10 * 60 * 1000) return null;
+  const delivery = manualNextSong.devices.get(deviceId);
+  if (delivery?.done) return null;
+  if (!delivery) {
+    manualNextSong.devices.set(deviceId, { firstAt: Date.now(), done: false });
+    return manualNextSong.name;
+  }
+  if (Date.now() - delivery.firstAt <= 5000) return manualNextSong.name;
+  delivery.done = true;
+  return null;
+}
 
 const stations_map = {};
 
@@ -814,7 +831,10 @@ class RadioStation {
 
   // Set next track by name — move _playIdx to point to this song
   setNextTrack(name) {
-    if (!this._playlist) return false;
+    // The library page can be opened before the first /api/esp request has
+    // created a shuffled queue.  Build one here so selecting a song always
+    // works, including immediately after a server restart.
+    if (!this._playlist) this._playlist = [...this.files];
     const idx = this._playlist.findIndex(fp => path.basename(fp, '.mp3') === name);
     if (idx < 0) return false;
     this._playIdx = idx;
@@ -1241,7 +1261,9 @@ app.post('/api/select-next', express.json(), (req, res) => {
     return res.status(400).json({ ok: false, error: 'missing name' });
   }
   const ok = currentLocalStation.setNextTrack(name);
-  res.json({ ok });
+  if (!ok) return res.status(404).json({ ok: false, error: 'track not found' });
+  manualNextSong = { name, selectedAt: Date.now(), devices: new Map() };
+  res.json({ ok: true, name });
 });
 
 // Reshuffle playlist
@@ -1270,6 +1292,18 @@ app.get('/api/esp', async (req, res) => {
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   const base = `${proto}://${host}`;
+  const requestDeviceId = req.ip || req.connection.remoteAddress || 'default';
+  const manualSong = manualSongForDevice(requestDeviceId);
+  if (manualSong) {
+    currentLocalStation.currentSong = manualSong;
+    console.log(`[api/esp] manual selection for ${requestDeviceId}: ${manualSong}`);
+    return res.json({
+      song: manualSong,
+      name: '曲目库手动选曲',
+      url: `${base}/audio/local/track/${encodeURIComponent(manualSong)}`,
+      volume: currentVolume,
+    });
+  }
 
   // ------------------------------------------------------------------
   // Fast path: playlist 模式 — 每个客户端独立指针
@@ -1502,6 +1536,17 @@ app.get('/api/esp/:deviceId', async (req, res) => {
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   const base = `${proto}://${host}`;
+  const manualSong = manualSongForDevice(deviceId);
+  if (manualSong) {
+    currentLocalStation.currentSong = manualSong;
+    console.log(`[esp/${deviceId}] manual selection: ${manualSong}`);
+    return res.json({
+      song: manualSong,
+      name: '曲目库手动选曲',
+      url: `${base}/audio/local/track/${encodeURIComponent(manualSong)}`,
+      volume: currentVolume,
+    });
+  }
 
   const pl = loadCurrentPlaylist();
   if (!isPlaylistFresh(pl) || !pl.songs || pl.songs.length === 0) {
@@ -2756,6 +2801,12 @@ app.post('/api/dj/vibes', express.json(), (req, res) => {
 // ---------------------------------------------------------------
 const LIBRARY_INDEX_FILE = path.join(__dirname, '.radio_playlist', 'library_index.json');
 const NETEASE_DIR = STATIONS_DIR;
+const LIBRARY_AUDIO_META_FILE = path.join(__dirname, '.radio_playlist', 'library_audio_meta.json');
+
+function _readLibraryAudioMeta() {
+  try { return JSON.parse(fs.readFileSync(LIBRARY_AUDIO_META_FILE, 'utf8')).files || {}; }
+  catch { return {}; }
+}
 
 function _readIndexSync() {
   try {
@@ -2765,10 +2816,52 @@ function _readIndexSync() {
   }
 }
 
+function _generatedAudioStats() {
+  const stats = {
+    tts: { count: 0, bytes: 0 },
+    stitched: { count: 0, bytes: 0 },
+  };
+  let batches = [];
+  try { batches = fs.readdirSync(PLAYLIST_ROOT, { withFileTypes: true }); } catch { return stats; }
+  for (const batch of batches) {
+    if (!batch.isDirectory() || !/^\d{12,14}$/.test(batch.name)) continue;
+    const introsDir = path.join(PLAYLIST_ROOT, batch.name, INTRO_REL_DIR);
+    let files = [];
+    try { files = fs.readdirSync(introsDir, { withFileTypes: true }); } catch { continue; }
+    for (const file of files) {
+      if (!file.isFile() || !file.name.toLowerCase().endsWith('.mp3')) continue;
+      const kind = file.name.endsWith('.stitched.mp3') ? 'stitched'
+        : file.name.endsWith('.song.mp3') ? null
+        : 'tts';
+      if (!kind) continue;
+      try {
+        const st = fs.statSync(path.join(introsDir, file.name));
+        stats[kind].count++;
+        stats[kind].bytes += st.size;
+      } catch {}
+    }
+  }
+  return stats;
+}
+
+function _diskStats(targetPath) {
+  try {
+    const st = fs.statfsSync(targetPath);
+    const blockSize = Number(st.bsize);
+    return {
+      total_bytes: Number(st.blocks) * blockSize,
+      free_bytes: Number(st.bavail) * blockSize,
+    };
+  } catch {
+    return { total_bytes: null, free_bytes: null };
+  }
+}
+
 app.get('/api/library', async (req, res) => {
   try {
     // 1. Load index → keyed by (title::artist) for O(1) join.
     const index = _readIndexSync();
+    const persistedAudioMeta = _readLibraryAudioMeta();
     const byKey = new Map();
     for (const e of (index.entries || [])) {
       const k = `${e.title || ''}::${e.artist || ''}`;
@@ -2793,10 +2886,20 @@ app.get('/api/library', async (req, res) => {
     try {
       entries = fs.readdirSync(NETEASE_DIR, { withFileTypes: true });
     } catch (e) {
-      return res.json({ songs: [], total: 0, index_age_seconds: 0 });
+      return res.json({
+        songs: [],
+        total: 0,
+        index_age_seconds: 0,
+        storage: {
+          original: { count: 0, bytes: 0 },
+          ..._generatedAudioStats(),
+          disk: _diskStats(path.dirname(NETEASE_DIR)),
+        },
+      });
     }
 
     const songs = [];
+    let originalBytes = 0;
     for (const ent of entries) {
       if (!ent.isFile() || !ent.name.toLowerCase().endsWith('.mp3')) continue;
       if (ent.name.startsWith('.')) continue;
@@ -2811,12 +2914,22 @@ app.get('/api/library', async (req, res) => {
 
       const k = `${title}::${artist}`;
       const ix = byKey.get(k);
+      // Metadata is generated outside the HTTP process. Reading hundreds of
+      // MP3 frame headers from a network-mounted library can otherwise block
+      // every request for tens of seconds.
+      const audioMeta = ix?.audio_meta || persistedAudioMeta[ent.name] || {};
 
       songs.push({
         name: ent.name,
         title,
         artist,
         sizeMB: +(st.size / 1024 / 1024).toFixed(2),
+        size_bytes: st.size,
+        bitrate_kbps: audioMeta.bitrate,
+        sample_rate_hz: audioMeta.sampleRate,
+        channels: audioMeta.channels,
+        channel_mode: audioMeta.channelMode,
+        duration_seconds: audioMeta.duration,
         mtime: st.mtime.toISOString(),
         // From index when available; otherwise tag as "未分组" so the
         // UI can show a clear bucket for unattributed songs (rather
@@ -2826,6 +2939,7 @@ app.get('/api/library', async (req, res) => {
         downloaded_at: ix?.downloaded_at ?? st.mtime.toISOString(),
         play_url: `/audio/local/track/${encodeURIComponent(stem)}`,
       });
+      originalBytes += st.size;
     }
 
     // Newest first — matches the "what was downloaded most recently"
@@ -2836,10 +2950,55 @@ app.get('/api/library', async (req, res) => {
       songs,
       total: songs.length,
       index_size: (index.entries || []).length,
+      storage: {
+        original: { count: songs.length, bytes: originalBytes },
+        ..._generatedAudioStats(),
+        disk: _diskStats(NETEASE_DIR),
+      },
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Delete generated audio only. Original library MP3s and playlist metadata are
+// deliberately out of scope. `tts` includes retained intro MP3s and abandoned
+// *.raw.mp3 files; temporary *.song.mp3 files are never exposed for deletion.
+app.delete('/api/library/generated/:kind', (req, res) => {
+  const kind = req.params.kind;
+  if (!['tts', 'stitched'].includes(kind)) {
+    return res.status(400).json({ ok: false, error: 'kind must be tts or stitched' });
+  }
+  let deleted = 0;
+  let bytes = 0;
+  const errors = [];
+  let batches = [];
+  try { batches = fs.readdirSync(PLAYLIST_ROOT, { withFileTypes: true }); } catch {}
+  for (const batch of batches) {
+    if (!batch.isDirectory() || !/^\d{12,14}$/.test(batch.name)) continue;
+    const introsDir = path.join(PLAYLIST_ROOT, batch.name, INTRO_REL_DIR);
+    let files = [];
+    try { files = fs.readdirSync(introsDir, { withFileTypes: true }); } catch { continue; }
+    for (const file of files) {
+      if (!file.isFile()) continue;
+      const isStitched = file.name.endsWith('.stitched.mp3');
+      const isTts = file.name.toLowerCase().endsWith('.mp3')
+        && !isStitched
+        && !file.name.endsWith('.song.mp3');
+      if ((kind === 'stitched' && !isStitched) || (kind === 'tts' && !isTts)) continue;
+      const fp = path.join(introsDir, file.name);
+      try {
+        const st = fs.statSync(fp);
+        fs.unlinkSync(fp);
+        deleted++;
+        bytes += st.size;
+        _activeStreams.delete(fp);
+      } catch (e) {
+        errors.push(`${batch.name}/${file.name}: ${e.message}`);
+      }
+    }
+  }
+  res.json({ ok: errors.length === 0, kind, deleted, bytes, errors: errors.slice(0, 10) });
 });
 
 // Keep /api/library/:id around for backward compat (was used by the
