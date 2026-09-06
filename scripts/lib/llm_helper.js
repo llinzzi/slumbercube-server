@@ -64,8 +64,25 @@ function log(...args) {
 //   opts.temperature   - default 0.7 (slightly creative for keyword generation)
 // Returns: the assistant text (string), or null on failure / missing key.
 async function anthropicChat(system, user, opts = {}) {
+  const trace = { stage: opts.stage || 'intro', ts: new Date().toISOString(), status: 'failed', http_request: null };
+  const started = Date.now();
+  function record() {
+    trace.duration_ms = Date.now() - started;
+    if (!process.env.DJ_PROGRESS_FILE) return;
+    try {
+      const file = process.env.DJ_PROGRESS_FILE;
+      const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+      state.progress = state.progress || {};
+      state.progress.llm_calls = [...(state.progress.llm_calls || []).filter(c => c.ts !== trace.ts), trace].slice(-20);
+      const tmp = `${file}.${process.pid}.trace.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(state));
+      fs.renameSync(tmp, file);
+    } catch (e) { log('trace save failed:', e.message); }
+  }
   const key = getAnthropicKey();
   if (!key) {
+    trace.error = 'Missing API key';
+    record();
     log('no API key found in config/settings.json or ~/.mmx/config.json');
     return null;
   }
@@ -85,6 +102,7 @@ async function anthropicChat(system, user, opts = {}) {
       : model;
     const body = JSON.stringify(isDeepSeek ? {
       model: selectedModel,
+      thinking: { type: 'disabled' },
       max_tokens,
       temperature,
       messages: [
@@ -100,6 +118,11 @@ async function anthropicChat(system, user, opts = {}) {
     });
     const https = require('https');
     const url = new URL(base);
+    trace.http_request = { url: base, method: 'POST', headers: isDeepSeek
+      ? { authorization: 'Bearer <redacted>', 'content-type': 'application/json' }
+      : { 'x-api-key': '<redacted>', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.parse(body) };
+    trace.status = 'running';
+    record();
     const result = await new Promise((resolve, reject) => {
       const req = https.request({
         hostname: url.hostname,
@@ -115,6 +138,7 @@ async function anthropicChat(system, user, opts = {}) {
         },
         timeout: timeoutMs,
       }, (res) => {
+        trace.http_status = res.statusCode;
         const chunks = [];
         res.on('data', c => chunks.push(c));
         res.on('end', () => {
@@ -139,8 +163,16 @@ async function anthropicChat(system, user, opts = {}) {
         .join('\n'))
       .trim();
     log(`${text ? 'OK' : 'EMPTY'} (${text.length} chars, ${result.usage?.output_tokens ?? result.usage?.completion_tokens ?? '?'} tokens, finish=${result.choices?.[0]?.finish_reason || result.stop_reason || '?'})`);
+    trace.status = text ? 'success' : 'empty';
+    trace.response = text;
+    trace.finish_reason = result.choices?.[0]?.finish_reason || result.stop_reason;
+    trace.usage = result.usage;
+    record();
     return text || null;
   } catch (e) {
+    trace.status = 'failed';
+    trace.error = e.message.slice(0, 300);
+    record();
     log('failed:', e.message.slice(0, 500));
     return null;
   }

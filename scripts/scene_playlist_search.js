@@ -100,6 +100,8 @@ function loadSceneHistory(sceneName, limit = 8) {
 // from intro_prompts.json (the same value that ${sceneHint} resolves to
 // for the LLM-batch intros).
 function getSceneHintLabel(sceneName) {
+  const fixed = require('./lib/scene_labels')[sceneName];
+  if (fixed) return fixed;
   try {
     const cfg = JSON.parse(fs.readFileSync(INTRO_PROMPTS_PATH, 'utf8'));
     const v = cfg && cfg.scene_hints && cfg.scene_hints[sceneName];
@@ -140,7 +142,7 @@ async function generateKeywordsWithLLM({ sceneName, weatherToday, weatherTomorro
     .replace(/\$\{history\}/g, historyStr)
     .replace(/\$\{historyCount\}/g, String(history.length));
   console.log(`[${sceneName}] llm-keywords: requesting...`);
-  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: 256, temperature: 0.8 });
+  const text = await llmHelper.anthropicChat(cfg.system_template, user, { stage: 'keywords', max_tokens: 2048, temperature: 0.8 });
   if (!text) return null;
   // Try to parse JSON array
   const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
@@ -191,7 +193,7 @@ async function selectPlaylistWithLLM({ sceneName, candidates, weatherToday, weat
     .replace(/\$\{historyCount\}/g, String(recent.length));
   console.log(`[${sceneName}] llm-select: requesting...`);
   for (let attempt = 0; attempt < 2; attempt++) {
-  const text = await llmHelper.anthropicChat(cfg.system_template, user, { max_tokens: attempt ? 4096 : 2048, temperature: 0.3 });
+  const text = await llmHelper.anthropicChat(cfg.system_template, user, { stage: 'selection', max_tokens: attempt ? 4096 : 2048, temperature: 0.3 });
   if (!text) continue;
   const cleaned = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
   // Try JSON object form first: {"playlist_id":"123"} or {"playlist_id":"SKIP"}

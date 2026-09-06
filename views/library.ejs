@@ -95,7 +95,8 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      margin-bottom: 14px;
+      margin-bottom: 0;
+      border-radius: 0;
       overflow: hidden;
     }
     .group-head {
@@ -387,6 +388,7 @@
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
         allSongs = d.songs || [];
+        selectedNext = d.current_playlist || '';
         allPlaylists = groupByPlaylist(allSongs);
         renderStorage(d.storage);
         render();
@@ -463,6 +465,7 @@
             <div class="name ${b.untagged ? 'untagged' : ''}">${esc(b.name)}</div>
             <div class="count">${b.songs.length} 首</div>
             <div class="meta">${esc(fmtRange(b.earliestAt, b.latestAt))}</div>
+            <button class="select-btn" data-name="${esc(b.key)}">设为当前歌单</button>
           </div>
         `;
         const table = `
@@ -490,8 +493,6 @@
                             data-url="${esc(s.play_url)}"
                             data-title="${esc(s.title || s.name)}"
                             data-artist="${esc(s.artist || '')}">▶ 试听</button>
-                    <button class="select-btn"
-                            data-name="${esc((s.name || '').replace(/\.mp3$/i, ''))}">设为下一首</button>
                   </td>
                 </tr>
               `).join('')}
@@ -512,6 +513,7 @@
         if (filter) setExpanded(true);
         head.addEventListener('click', () => setExpanded(group.classList.contains('collapsed')));
         head.addEventListener('keydown', ev => {
+          if (ev.target !== head) return;
           if (ev.key === 'Enter' || ev.key === ' ') {
             ev.preventDefault();
             setExpanded(group.classList.contains('collapsed'));
@@ -534,23 +536,23 @@
       contentEl.querySelectorAll('.select-btn').forEach(btn => {
         if (btn.dataset.name === selectedNext) {
           btn.classList.add('selected');
-          btn.textContent = '✓ 下一首';
+          btn.textContent = '✓ 当前歌单';
           btn.closest('tr')?.classList.add('selected');
         }
         btn.addEventListener('click', async ev => {
           ev.stopPropagation();
           btn.disabled = true;
           try {
-            const r = await fetch('/api/select-next', {
+            const r = await fetch('/api/library/activate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: btn.dataset.name }),
+              body: JSON.stringify({ key: btn.dataset.name }),
             });
             const d = await r.json();
             if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
             selectedNext = btn.dataset.name;
             render();
-            storageStatus.textContent = `已将「${btn.dataset.name}」设为下一首，设备下次取曲时生效。`;
+            storageStatus.textContent = `当前歌单已切换为「${d.name}」，共 ${d.total} 首。设备下次取曲时从第一首播放；后续 DJ 任务会替换当前歌单。`;
           } catch (e) {
             storageStatus.textContent = `切换失败：${e.message}`;
             btn.disabled = false;

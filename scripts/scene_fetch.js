@@ -96,7 +96,7 @@ async function main() {
     batch: 'scene-fetch',
     scene: sceneName,
     started_at: new Date().toISOString(),
-    progress: { phase: 'searching', total: 0, current: 0, succeeded: 0, failed: 0 },
+    progress: { phase: 'searching', total: 0, current: 0, succeeded: 0, failed: 0, llm_calls: [] },
   });
 
   // 2. Search NCM for playlists
@@ -143,9 +143,7 @@ async function main() {
     state: 'running',
     progress: {
       phase: 'searching',
-      keywords: (searchResult && searchResult.keywords_source === 'llm')
-        ? (searchResult.candidates[0] && searchResult.candidates[0].matched_keywords) || []
-        : scene.keywords,                         // LLM 生成 or 配置的关键词
+      keywords: searchResult.used_keywords || [],
       candidates: searchResult.candidates.map(c => ({  // 候选歌单列表
         id: c.id,
         name: c.name,

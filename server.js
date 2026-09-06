@@ -2333,6 +2333,8 @@ app.get('/api/dj/llm-history', (req, res) => {
           prompt: e.prompt,
           response: e.response,
           http_request: e.http_request || null,
+          llm_calls: e.llm_calls || [],
+          intro_status: e.intro_status || 'unknown',
           keywords: e.keywords || null,
           candidates: e.candidates || null,
           chosen_playlist: e.chosen_playlist || null,
@@ -2857,7 +2859,7 @@ function _diskStats(targetPath) {
   }
 }
 
-app.get('/api/library', async (req, res) => {
+function readLibraryData() {
   try {
     // 1. Load index → keyed by (title::artist) for O(1) join.
     const index = _readIndexSync();
@@ -2886,7 +2888,7 @@ app.get('/api/library', async (req, res) => {
     try {
       entries = fs.readdirSync(NETEASE_DIR, { withFileTypes: true });
     } catch (e) {
-      return res.json({
+      return {
         songs: [],
         total: 0,
         index_age_seconds: 0,
@@ -2895,7 +2897,7 @@ app.get('/api/library', async (req, res) => {
           ..._generatedAudioStats(),
           disk: _diskStats(path.dirname(NETEASE_DIR)),
         },
-      });
+      };
     }
 
     const songs = [];
@@ -2946,8 +2948,9 @@ app.get('/api/library', async (req, res) => {
     // mental model that drives the DJ Agent workflow.
     songs.sort((a, b) => b.downloaded_at.localeCompare(a.downloaded_at));
 
-    res.json({
+    return {
       songs,
+      current_playlist: loadCurrentPlaylist()?.library_key || null,
       total: songs.length,
       index_size: (index.entries || []).length,
       storage: {
@@ -2955,10 +2958,38 @@ app.get('/api/library', async (req, res) => {
         ..._generatedAudioStats(),
         disk: _diskStats(NETEASE_DIR),
       },
-    });
+    };
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    throw e;
   }
+}
+app.get('/api/library', (req, res) => {
+  try { res.json(readLibraryData()); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/library/activate', express.json(), (req, res) => {
+  try {
+    const key = req.body?.key;
+    if (typeof key !== 'string' || !key) return res.status(400).json({ error: 'missing playlist key' });
+    const songs = readLibraryData().songs.filter(s => (s.playlist_name || '(__untagged__)') === key);
+    if (!songs.length) return res.status(404).json({ error: '歌单没有可播放的本地歌曲' });
+    const now = new Date().toISOString();
+    const playlist = {
+      generated_at: now, valid_until: '9999-12-31T23:59:59.000Z',
+      library_key: key, playlist_name: songs[0].playlist_name || '未分组',
+      songs: songs.map(s => ({ name: s.title || s.name, artist: s.artist,
+        stitched_url: s.play_url, song_url: s.play_url })),
+    };
+    // Replace the current pointer atomically, preserving its previous batch.
+    const temporary = `${PLAYLIST_JSON}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify(playlist, null, 2));
+    fs.renameSync(temporary, PLAYLIST_JSON);
+    manualNextSong = null;
+    _deviceCursors.clear();
+    loadCurrentPlaylist();
+    res.json({ ok: true, key, name: playlist.playlist_name, total: songs.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Delete generated audio only. Original library MP3s and playlist metadata are

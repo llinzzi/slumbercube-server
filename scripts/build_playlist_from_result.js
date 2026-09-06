@@ -232,6 +232,8 @@ function loadIntroPromptConfig() {
 // either the new {label, keywords} object or a legacy bare string.
 // Returns the scene key as a last-resort fallback.
 function getSceneLabel(sceneHints, sceneKey) {
+  const fixed = require('./lib/scene_labels')[sceneKey];
+  if (fixed) return fixed;
   const v = sceneHints && sceneHints[sceneKey];
   if (v == null) return sceneKey;
   if (typeof v === 'string') return v;
@@ -428,6 +430,7 @@ async function generateIntrosBatch(songs, scene, promptCfg, log) {
       },
       body: LLM_PROVIDER === 'deepseek' ? {
         model: LLM_MODEL,
+        thinking: { type: 'disabled' },
         max_tokens: 4000,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -777,6 +780,8 @@ function reportBuildProgress(progress) {
           prompt: progress.llm.prompt,
           response: progress.llm.response,
           http_request: progress.llm.http_request || null,
+          llm_calls: cur.progress.llm_calls || [],
+          intro_status: progress.llm.status,
           // Scene-fetch context — copied from progress so the admin
           // UI can show the full trigger context (keywords, NCM
           // candidates, chosen playlist + song list) alongside the
@@ -953,6 +958,7 @@ async function main() {
     current_song: '',
     sub_phase: 'llm_batch',
     llm: {
+      status: TTS_ENABLED ? (introMap.size ? 'success' : 'failed') : 'skipped_tts_disabled',
       system: promptCfg.system_template.replace(/\$\{sceneHint\}/g, sceneHint),
       prompt,
       response,

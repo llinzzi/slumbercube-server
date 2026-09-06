@@ -346,6 +346,7 @@
       <div id="phase-list" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
 
+    <div id="live-process" style="margin-top:12px"></div>
     <div id="progress-container" style="display: none; margin-top: 12px;">
       <div class="progress-bar">
         <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
@@ -743,8 +744,71 @@
       }
     }
 
+    const modelDetailOpen = new Set();
+    document.addEventListener('toggle', event => {
+      const el = event.target;
+      const key = el.dataset?.modelDetail;
+      if (!key || !el.isConnected) return;
+      if (el.open) modelDetailOpen.add(key);
+      else modelDetailOpen.delete(key);
+    }, true);
+
+    function renderModelProcess(calls, scope = 'live') {
+      // Snapshot before replacing DOM, including toggles whose event has not
+      // fired yet. Keep history and live panels independent for the same call.
+      document.querySelectorAll('details[data-model-detail]').forEach(el => {
+        if (el.open) modelDetailOpen.add(el.dataset.modelDetail);
+        else modelDetailOpen.delete(el.dataset.modelDetail);
+      });
+      return (calls || []).map(call => {
+        const key = `${scope}:${call.stage}:${call.ts}`;
+        const name = ({keywords:'生成搜索关键词',selection:'选择歌单',intro:'生成讲解'})[call.stage] || call.stage;
+        const state = ({running:'正在请求模型…',success:'模型已返回',empty:'模型返回为空',failed:'调用失败'})[call.status] || call.status;
+        return `<section style="border:1px solid var(--border);padding:10px;margin:8px 0;border-radius:6px">
+          <div>${escapeHtml(name)} · ${escapeHtml(state)}</div>
+          <div class="meta">${escapeHtml(call.http_request?.body?.model || '')} · ${Math.round(call.duration_ms || 0)} ms · ${escapeHtml(call.finish_reason || '')}</div>
+          <pre style="white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto">${escapeHtml(call.response || call.error || (call.status === 'running' ? '等待模型返回具体内容' : '没有返回正文'))}</pre>
+          <details data-model-detail="${escapeHtml(key)}"${modelDetailOpen.has(key) ? ' open' : ''}><summary>请求参数与响应详情（已脱敏）</summary><pre style="white-space:pre-wrap;word-break:break-word;max-height:350px;overflow:auto">${escapeHtml(JSON.stringify(call,null,2))}</pre></details>
+        </section>`;
+      }).join('');
+    }
+
+    function preservePanelScroll(root) {
+      const positions = new Map();
+      function visit(fn) {
+        const counts = new Map();
+        root.querySelectorAll('pre, [style*="overflow"]').forEach(el => {
+          const parent = el.closest('[data-model-detail], [data-ts]');
+          const base = parent?.dataset.modelDetail || parent?.dataset.ts || root.id;
+          const index = counts.get(base) || 0;
+          counts.set(base, index + 1);
+          fn(el, `${base}:${index}`);
+        });
+      }
+      visit((el, key) => positions.set(key, [el.scrollTop, el.scrollLeft]));
+      const top = root.scrollTop, left = root.scrollLeft;
+      return () => {
+        visit((el, key) => {
+          const pos = positions.get(key);
+          if (pos) { el.scrollTop = pos[0]; el.scrollLeft = pos[1]; }
+        });
+        root.scrollTop = top;
+        root.scrollLeft = left;
+      };
+    }
+
     function renderStatus(status) {
       const { state, batch, persona, started_at, progress, result, history } = status;
+      const p = progress || {};
+      const restoreLiveScroll = preservePanelScroll($('live-process'));
+      $('live-process').innerHTML = `${renderModelProcess(p.llm_calls)}
+        ${p.keywords?.length ? `<p>实际搜索词：${p.keywords.map(escapeHtml).join('、')}</p>` : ''}
+        ${(p.candidates || []).map((c,i) => `<div class="meta">候选 ${i+1}：${escapeHtml(c.name)} · ${escapeHtml(c.id)} · ${c.track_count || 0} 首</div>`).join('')}
+        ${p.chosen_playlist ? `<p>已采用：${escapeHtml(p.chosen_playlist.name)}（${escapeHtml(p.chosen_playlist.id)}）</p>` : ''}
+        ${p.current_song ? `<p>正在处理：${escapeHtml(p.current_song)}</p>` : ''}
+        ${p.llm?.status === 'skipped_tts_disabled' ? '<p>讲解生成：已跳过（TTS 关闭）</p>' : ''}
+        ${result?.error ? `<p>任务错误：${escapeHtml(result.error)}</p>` : ''}`;
+      restoreLiveScroll();
 
       // State badge
       const badge = $('state-badge');
@@ -954,6 +1018,7 @@
         let openSet = new Set();
         try { openSet = new Set(JSON.parse(localStorage.getItem('llm-history-open') || '[]')); } catch {}
 
+        const restoreHistoryScroll = preservePanelScroll(list);
         list.innerHTML = entries.map((e) => {
           const dur = e.duration_ms ? `${(e.duration_ms / 1000).toFixed(1)}s` : '?';
           // e.ts 是 Node 端 new Date().toISOString() 写入的 UTC 时间，
@@ -1028,19 +1093,22 @@
                 <!-- 右列：LLM 详情 -->
                 <div>
                   <div class="meta" style="font-weight:600;margin-bottom:6px;">🤖 LLM 详情</div>
+                  ${renderModelProcess(e.llm_calls, `history:${e.ts}`)}
+                  <div class="meta">讲解生成：${e.intro_status === 'skipped_tts_disabled' ? '已跳过：TTS 关闭，未发送讲解请求' : e.intro_status === 'success' ? '成功' : e.intro_status === 'failed' ? '失败' : '旧记录未保存执行状态'}</div>
                   <div class="meta" style="margin:6px 0 2px;">📤 System Prompt</div>
                   <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.system || '(未保存)')}</pre>
                   <div class="meta" style="margin:6px 0 2px;">💬 User Prompt（${(e.prompt || '').length} 字）</div>
                   <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.prompt || '')}</pre>
                   <div class="meta" style="margin:6px 0 2px;">📥 Raw Response</div>
                   <pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0 0 6px;">${escapeHtml(e.response || '')}</pre>
-                  <div class="meta" style="margin:6px 0 2px;">🐛 原始 HTTP 请求</div>
-                  <pre style="background:var(--bg);border:1px solid var(--warn);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0;">${escapeHtml(e.http_request || '(未保存 — 旧版 build_playlist 未记录)')}</pre>
+                  <div class="meta" style="margin:6px 0 2px;">🐛 讲解生成 HTTP 请求（搜索与选曲请求见上方阶段记录）</div>
+                  <pre style="background:var(--bg);border:1px solid var(--warn);border-radius:3px;padding:6px;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:0;">${escapeHtml(e.intro_status === 'skipped_tts_disabled' ? '已跳过：TTS 关闭，未发送请求' : e.http_request || '旧记录无请求数据，无法还原当时调用；新任务将分别记录各阶段请求。')}</pre>
                 </div>
               </div>
             </details>
           `;
         }).join('');
+        restoreHistoryScroll();
       } catch (e) {
         console.error('renderLlmHistory failed:', e);
       }
