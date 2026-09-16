@@ -303,7 +303,7 @@ async function main() {
   for (let i = 0; i < totalToScan; i++) {
     if (checkCancelled()) {
       log(`cancel requested — aborting after ${downloaded.length} songs`);
-      break;
+      process.exit(130);
     }
     if (downloaded.length >= SONGS_PER_PLAYLIST) {
       log(`reached ${SONGS_PER_PLAYLIST} full songs, stopping scan at index ${i}/${totalToScan}`);

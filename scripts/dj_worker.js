@@ -95,7 +95,12 @@ function startJob(batch, persona = null) {
   child.stdout.on('data', d => process.stdout.write(d));
   child.stderr.on('data', d => process.stderr.write(d));
 
-  attachExitHandler(child, { kind: 'generate', batch, persona });
+  const finalize = attachExitHandler(child, { kind: 'generate', batch, persona });
+  child.once('exit', finalize);
+  child.once('error', error => {
+    log(`Failed to spawn generator: ${error.message}`);
+    finalize(1, null);
+  });
   currentJob = { kind: 'generate', batch, child, startedAt: Date.now() };
   log(`Job started: ${batch} (PID ${child.pid})`);
 }
@@ -205,7 +210,10 @@ function startSceneFetchJob(scene, persona = null) {
  * startSceneFetchJob can share it.
  */
 function attachExitHandler(child, meta) {
+  let finalized = false;
   return (code, signal) => {
+    if (finalized) return;
+    finalized = true;
     const endedAt = new Date().toISOString();
     const finalState = queue.readState();
     const succeeded = finalState.progress ? (finalState.progress.succeeded || 0) : 0;
@@ -345,6 +353,8 @@ function finishShutdown() {
 // Boot
 // ---------------------------------------------------------------------------
 ensureDir();
+// A cancellation belongs to the previous worker's job, never a new run.
+try { fs.unlinkSync(CANCEL_FILE); } catch {}
 writePidFile();
 process.on('SIGTERM', () => handleSignal('SIGTERM'));
 process.on('SIGINT', () => handleSignal('SIGINT'));

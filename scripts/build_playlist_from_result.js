@@ -890,7 +890,7 @@ async function main() {
   let songs = result.songs || [];
   if (!songs.length) {
     log('result.songs is empty — scene_fetch did not record any songs (was it run after this script landed?)');
-    process.exit(0);
+    process.exit(1);
   }
   // Hard cap at 20. The follow-up pipeline (TTS + transcode + stitch)
   // takes ~7s per song, so 20 ≈ 2.5min — acceptable latency between
