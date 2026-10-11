@@ -18,38 +18,100 @@ const path = require('path');// Device readings storage (temperature + humidity 
 // Format: [{device_id, ts (ISO), temperature, humidity, source}]
 const DEVICE_READINGS_FILE = path.join(__dirname, 'config', 'device_readings.json');
 const MAX_READINGS_PER_DEVICE = 24 * 60;  // ~ 1 reading/minute for 24h, plenty
-let _deviceReadings = []; // in-memory cache
-try { _deviceReadings = JSON.parse(fs.readFileSync(DEVICE_READINGS_FILE, 'utf-8')).device_readings || []; } catch (e) { _deviceReadings = []; }
+// 落盘节流：设备高频轮询时（2026-08 曾出现 25 次/分钟）不再每次请求都同步写整份文件
+const READINGS_SAVE_MIN_INTERVAL_MS = 60 * 1000;
 
-function saveDeviceReadings() {
-  try {
-    fs.writeFileSync(DEVICE_READINGS_FILE, JSON.stringify({ device_readings: _deviceReadings }, null, 2), 'utf-8');
-  } catch (e) { console.error('[readings] save failed:', e.message); }
+const _readingsByDevice = new Map(); // device_id -> 时间升序数组，每设备最多 MAX_READINGS_PER_DEVICE 条
+let _deviceReadings = [];            // 扁平缓存（时间升序），只读端点用，按需重建
+let _readingsFlatStale = false;
+let _readingsDirty = false;
+let _readingsSaveTimer = null;
+let _readingsSavedAt = 0;
+
+function _rebuildFlatReadings() {
+  const all = [];
+  for (const arr of _readingsByDevice.values()) all.push(...arr);
+  all.sort((a, b) => a.ts.localeCompare(b.ts));
+  _deviceReadings = all;
+  _readingsFlatStale = false;
 }
+
+// 读端点统一走这里，保证拿到的是最新的扁平缓存
+function allDeviceReadings() {
+  if (_readingsFlatStale) _rebuildFlatReadings();
+  return _deviceReadings;
+}
+
+function _loadDeviceReadings() {
+  let list = [];
+  try { list = JSON.parse(fs.readFileSync(DEVICE_READINGS_FILE, 'utf-8')).device_readings || []; }
+  catch (e) { list = []; }
+  for (const r of list) {
+    if (!r || !r.device_id) continue;
+    let arr = _readingsByDevice.get(r.device_id);
+    if (!arr) _readingsByDevice.set(r.device_id, (arr = []));
+    arr.push(r);
+  }
+  for (const arr of _readingsByDevice.values()) {
+    arr.sort((a, b) => a.ts.localeCompare(b.ts));
+    if (arr.length > MAX_READINGS_PER_DEVICE) arr.splice(0, arr.length - MAX_READINGS_PER_DEVICE);
+  }
+  _rebuildFlatReadings();
+}
+_loadDeviceReadings();
+
+// 异步 + 节流：立即落盘只发生在开机后第一次和超过节流窗口时，其余合并成一次写
+function saveDeviceReadings(force) {
+  _readingsDirty = true;
+  const wait = READINGS_SAVE_MIN_INTERVAL_MS - (Date.now() - _readingsSavedAt);
+  if (!force && wait > 0) {
+    if (!_readingsSaveTimer) {
+      _readingsSaveTimer = setTimeout(function () {
+        _readingsSaveTimer = null;
+        saveDeviceReadings(true);
+      }, wait);
+      if (_readingsSaveTimer.unref) _readingsSaveTimer.unref();
+    }
+    return;
+  }
+  if (_readingsSaveTimer) { clearTimeout(_readingsSaveTimer); _readingsSaveTimer = null; }
+  _readingsDirty = false;
+  _readingsSavedAt = Date.now();
+  fs.writeFile(DEVICE_READINGS_FILE,
+    JSON.stringify({ device_readings: allDeviceReadings() }, null, 2), 'utf-8',
+    function (err) {
+      if (err) { _readingsDirty = true; console.error('[readings] save failed:', err.message); }
+    });
+}
+
+// 退出前把还在节流窗口里的数据补上，否则内存里最新的读数会随进程一起消失
+function flushDeviceReadings() {
+  if (!_readingsDirty) return;
+  try {
+    fs.writeFileSync(DEVICE_READINGS_FILE,
+      JSON.stringify({ device_readings: allDeviceReadings() }, null, 2), 'utf-8');
+    _readingsDirty = false;
+  } catch (e) { console.error('[readings] flush failed:', e.message); }
+}
+['SIGINT', 'SIGTERM'].forEach(function (sig) {
+  process.on(sig, function () { flushDeviceReadings(); process.exit(0); });
+});
 
 function recordReading(device_id, temperature, humidity, source = 'device') {
   if (!device_id) return;
   if (temperature == null && humidity == null) return;
-  _deviceReadings.push({
+  let arr = _readingsByDevice.get(device_id);
+  if (!arr) _readingsByDevice.set(device_id, (arr = []));
+  arr.push({
     device_id,
     ts: new Date().toISOString(),
     temperature: temperature == null ? null : Number(temperature),
     humidity: humidity == null ? null : Number(humidity),
     source,
   });
-  // Trim by device: keep last MAX_READINGS_PER_DEVICE per device
-  const byDevice = {};
-  for (const r of _deviceReadings) {
-    if (!byDevice[r.device_id]) byDevice[r.device_id] = [];
-    byDevice[r.device_id].push(r);
-  }
-  const trimmed = [];
-  for (const arr of Object.values(byDevice)) {
-    if (arr.length > MAX_READINGS_PER_DEVICE) arr.splice(0, arr.length - MAX_READINGS_PER_DEVICE);
-    trimmed.push(...arr);
-  }
-  trimmed.sort((a, b) => a.ts.localeCompare(b.ts));
-  _deviceReadings = trimmed;
+  // 按设备裁剪是摊销 O(1)，替代原先每次请求都重建 + 排序整个数组
+  if (arr.length > MAX_READINGS_PER_DEVICE) arr.splice(0, arr.length - MAX_READINGS_PER_DEVICE);
+  _readingsFlatStale = true;
   saveDeviceReadings();
 }
 
@@ -1149,7 +1211,7 @@ app.get('/api/devices/list', function(req, res) {
   // doesn't accumulate old/test entries forever.
   const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
   const recent = new Set();
-  for (const r of _deviceReadings) {
+  for (const r of allDeviceReadings()) {
     if (new Date(r.ts).getTime() >= cutoff) recent.add(r.device_id);
   }
   const devices = [...recent].sort();
@@ -1160,7 +1222,7 @@ app.get('/api/devices/list', function(req, res) {
 app.get('/api/readings', function(req, res) {
   const { device, days = '1' } = req.query;
   const cutoff = Date.now() - (Number(days) || 1) * 86400 * 1000;
-  let result = _deviceReadings.filter(r => new Date(r.ts).getTime() >= cutoff);
+  let result = allDeviceReadings().filter(r => new Date(r.ts).getTime() >= cutoff);
   if (device && device !== 'all') result = result.filter(r => r.device_id === device);
   // Group by device for chart convenience
   const byDevice = {};
